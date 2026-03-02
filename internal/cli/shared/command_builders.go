@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/peterbourgon/ff/v3/ffcli"
@@ -60,8 +59,7 @@ func BuildIDGetCommand(config IDGetCommandConfig) *ffcli.Command {
 		Exec: func(ctx context.Context, args []string) error {
 			idValue := strings.TrimSpace(*id)
 			if idValue == "" {
-				fmt.Fprintf(os.Stderr, "Error: --%s is required\n", idFlagName)
-				return flag.ErrHelp
+				return UsageErrorf("--%s is required", idFlagName)
 			}
 
 			client, err := GetASCClient()
@@ -148,8 +146,7 @@ func BuildPaginatedListCommand(config PaginatedListCommandConfig) *ffcli.Command
 
 			resolvedParentID := strings.TrimSpace(*parentID)
 			if resolvedParentID == "" && strings.TrimSpace(*next) == "" {
-				fmt.Fprintf(os.Stderr, "Error: --%s is required\n", parentFlagName)
-				return flag.ErrHelp
+				return UsageErrorf("--%s is required", parentFlagName)
 			}
 
 			client, err := GetASCClient()
@@ -238,12 +235,10 @@ func BuildConfirmDeleteCommand(config ConfirmDeleteCommandConfig) *ffcli.Command
 		Exec: func(ctx context.Context, args []string) error {
 			idValue := strings.TrimSpace(*id)
 			if idValue == "" {
-				fmt.Fprintf(os.Stderr, "Error: --%s is required\n", idFlagName)
-				return flag.ErrHelp
+				return UsageErrorf("--%s is required", idFlagName)
 			}
 			if !*confirm {
-				fmt.Fprintln(os.Stderr, "Error: --confirm is required")
-				return flag.ErrHelp
+				return UsageError("--confirm is required")
 			}
 
 			client, err := GetASCClient()
