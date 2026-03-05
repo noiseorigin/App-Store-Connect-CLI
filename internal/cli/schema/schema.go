@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 
@@ -81,6 +82,20 @@ func pathToDotNotation(method, path string) string {
 	return result
 }
 
+func normalizeMethodFilter(raw string) (string, error) {
+	method := strings.ToUpper(strings.TrimSpace(raw))
+	if method == "" {
+		return "", nil
+	}
+
+	switch method {
+	case http.MethodGet, http.MethodPost, http.MethodPatch, http.MethodDelete:
+		return method, nil
+	default:
+		return "", shared.UsageErrorf("invalid --method %q (allowed: GET, POST, PATCH, DELETE)", method)
+	}
+}
+
 // SchemaCommand returns the schema command.
 func SchemaCommand() *ffcli.Command {
 	fs := flag.NewFlagSet("schema", flag.ExitOnError)
@@ -117,7 +132,10 @@ Examples:
 				return err
 			}
 
-			methodFilter := strings.ToUpper(strings.TrimSpace(*method))
+			methodFilter, err := normalizeMethodFilter(*method)
+			if err != nil {
+				return err
+			}
 
 			if *listAll {
 				return listEndpoints(endpoints, methodFilter, *pretty)

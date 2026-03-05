@@ -26,6 +26,12 @@ def resolve_ref(schemas: dict, ref: str):
     return schemas.get(ref.split("/")[-1])
 
 
+def resolve_parameter_ref(parameters: dict, ref: str):
+    if not ref or not ref.startswith("#/components/parameters/"):
+        return None
+    return parameters.get(ref.split("/")[-1])
+
+
 def extract_fields(schemas: dict, obj, depth: int = 0) -> dict:
     if depth > 3 or not obj:
         return {}
@@ -61,30 +67,68 @@ def extract_request_attributes(schemas: dict, ref: str):
     return fields if fields else None
 
 
+def compact_parameter(parameter_components: dict, parameter: dict):
+    p = parameter
+    if "$ref" in p:
+        resolved = resolve_parameter_ref(parameter_components, p["$ref"])
+        if not resolved:
+            return None
+        p = resolved
+
+    name = p.get("name")
+    in_value = p.get("in")
+    if not name or not in_value:
+        return None
+
+    compact: dict = {"name": name, "in": in_value}
+    schema = p.get("schema", {})
+    enum = schema.get("enum") or schema.get("items", {}).get("enum")
+    if enum:
+        compact["enum"] = enum
+    if p.get("required"):
+        compact["required"] = True
+    return compact
+
+
+def compact_parameters(
+    parameter_components: dict, path_params: list, operation_params: list
+) -> list[dict]:
+    seen: set[tuple[str, str]] = set()
+    compact: list[dict] = []
+
+    for parameter in (path_params or []) + (operation_params or []):
+        if not isinstance(parameter, dict):
+            continue
+        pi = compact_parameter(parameter_components, parameter)
+        if not pi:
+            continue
+        key = (pi["name"], pi["in"])
+        if key in seen:
+            continue
+        seen.add(key)
+        compact.append(pi)
+
+    return compact
+
+
 def build_index(spec: dict) -> list[dict]:
     schemas = spec.get("components", {}).get("schemas", {})
+    parameter_components = spec.get("components", {}).get("parameters", {})
     index = []
 
     for path, methods in spec.get("paths", {}).items():
+        path_params = methods.get("parameters", [])
         for method, details in methods.items():
             if method not in ("get", "post", "patch", "delete"):
                 continue
 
             entry: dict = {"method": method.upper(), "path": path}
 
-            params = details.get("parameters", [])
+            params = compact_parameters(
+                parameter_components, path_params, details.get("parameters", [])
+            )
             if params:
-                compact = []
-                for p in params:
-                    pi: dict = {"name": p["name"], "in": p["in"]}
-                    schema = p.get("schema", {})
-                    enum = schema.get("enum") or schema.get("items", {}).get("enum")
-                    if enum:
-                        pi["enum"] = enum
-                    if p.get("required"):
-                        pi["required"] = True
-                    compact.append(pi)
-                entry["parameters"] = compact
+                entry["parameters"] = params
 
             rb = (
                 details.get("requestBody", {})

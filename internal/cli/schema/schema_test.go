@@ -134,3 +134,59 @@ func TestLoadIndex_HasResponseSchema(t *testing.T) {
 	}
 	t.Error("GET /v1/apps not found")
 }
+
+func TestLoadIndex_IncludesPathLevelIDParameter(t *testing.T) {
+	endpoints, err := loadIndex()
+	if err != nil {
+		t.Fatalf("loadIndex() error: %v", err)
+	}
+
+	for _, e := range endpoints {
+		if e.Method != "GET" || e.Path != "/v1/apps/{id}" {
+			continue
+		}
+		for _, p := range e.Parameters {
+			if p.Name == "id" && p.In == "path" {
+				if !p.Required {
+					t.Error("path parameter id should be required")
+				}
+				return
+			}
+		}
+		t.Fatal("GET /v1/apps/{id} should include path parameter id")
+	}
+
+	t.Error("GET /v1/apps/{id} not found")
+}
+
+func TestNormalizeMethodFilter(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    string
+		wantErr bool
+	}{
+		{name: "empty", input: "", want: ""},
+		{name: "lowercase", input: "get", want: "GET"},
+		{name: "surrounded whitespace", input: " post ", want: "POST"},
+		{name: "invalid", input: "DELTE", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := normalizeMethodFilter(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("normalizeMethodFilter(%q) = nil error, want error", tt.input)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("normalizeMethodFilter(%q) error: %v", tt.input, err)
+			}
+			if got != tt.want {
+				t.Fatalf("normalizeMethodFilter(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
