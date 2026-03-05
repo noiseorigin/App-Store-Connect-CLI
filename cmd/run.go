@@ -68,15 +68,14 @@ func Run(args []string, versionInfo string) int {
 	}
 
 	commandName := getCommandName(root, args)
-	if commandName != "asc" && commandName != "asc install-skills" {
-		// Run this best-effort check in the background so normal command
-		// execution never waits on skills update probing.
-		go maybeCheckForSkillUpdates(context.Background())
-	}
 
 	start := time.Now()
 	runErr := root.Run(runCtx)
 	elapsed := time.Since(start)
+
+	if commandName != "asc" && commandName != "asc install-skills" {
+		maybeCheckForSkillUpdates(runCtx)
+	}
 
 	// Write JUnit report if requested
 	if shared.ReportFormat() == shared.ReportFormatJUnit && shared.ReportFile() != "" {

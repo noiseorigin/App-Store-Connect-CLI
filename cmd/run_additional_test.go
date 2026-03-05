@@ -151,30 +151,6 @@ func TestRun_InvokesSkillsUpdateCheckForSubcommand(t *testing.T) {
 	}
 }
 
-func TestRun_DoesNotBlockOnSkillsUpdateCheck(t *testing.T) {
-	resetReportFlags(t)
-
-	origCheck := maybeCheckForSkillUpdates
-	t.Cleanup(func() { maybeCheckForSkillUpdates = origCheck })
-
-	maybeCheckForSkillUpdates = func(ctx context.Context) {
-		time.Sleep(400 * time.Millisecond)
-	}
-
-	start := time.Now()
-	_, _ = captureCommandOutput(t, func() {
-		code := Run([]string{"completion", "--shell", "bash"}, "1.0.0")
-		if code != ExitSuccess {
-			t.Fatalf("Run() exit code = %d, want %d", code, ExitSuccess)
-		}
-	})
-	elapsed := time.Since(start)
-
-	if elapsed >= 250*time.Millisecond {
-		t.Fatalf("expected run not to block on skills update check, elapsed=%s", elapsed)
-	}
-}
-
 func TestRun_SkipsSkillsUpdateCheckForRootInvocation(t *testing.T) {
 	resetReportFlags(t)
 
