@@ -255,6 +255,11 @@ func TestBetaBuildLocalizationsLatestSelectorValidationErrors(t *testing.T) {
 			wantErr: "--latest is required with --app",
 		},
 		{
+			name:    "create latest without app",
+			args:    []string{"beta-build-localizations", "create", "--latest", "--locale", "en-US", "--whats-new", "notes"},
+			wantErr: "--app is required with --latest",
+		},
+		{
 			name:    "create build with latest mode flags",
 			args:    []string{"beta-build-localizations", "create", "--build", "build-1", "--app", "123456789", "--latest", "--locale", "en-US", "--whats-new", "notes"},
 			wantErr: "--build is mutually exclusive",

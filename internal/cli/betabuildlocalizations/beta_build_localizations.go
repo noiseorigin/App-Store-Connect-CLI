@@ -195,6 +195,10 @@ Examples:
 			appValue := strings.TrimSpace(*appID)
 			stateValue := strings.TrimSpace(*state)
 			localeValue := strings.TrimSpace(*locale)
+			normalizedStateValues, err := normalizeLatestBuildProcessingStateFilter(stateValue)
+			if err != nil {
+				return err
+			}
 
 			if idValue != "" {
 				if appValue != "" || *latest || stateValue != "" || localeValue != "" {
@@ -238,7 +242,7 @@ Examples:
 			defer cancel()
 
 			if idValue == "" {
-				buildValue, err := resolveLatestBuildIDForBetaBuildLocalizations(requestCtx, client, appValue, stateValue)
+				buildValue, err := resolveLatestBuildIDForBetaBuildLocalizations(requestCtx, client, appValue, normalizedStateValues)
 				if err != nil {
 					return fmt.Errorf("beta-build-localizations get: %w", err)
 				}
@@ -314,8 +318,12 @@ Examples:
 			buildValue := strings.TrimSpace(*buildID)
 			appValue := strings.TrimSpace(*appID)
 			stateValue := strings.TrimSpace(*state)
+			normalizedStateValues, err := normalizeLatestBuildProcessingStateFilter(stateValue)
+			if err != nil {
+				return err
+			}
 
-			if buildValue == "" && appValue == "" {
+			if buildValue == "" && appValue == "" && !*latest {
 				fmt.Fprintln(os.Stderr, "Error: --build is required")
 				return flag.ErrHelp
 			}
@@ -360,7 +368,7 @@ Examples:
 			defer cancel()
 
 			if buildValue == "" {
-				buildValue, err = resolveLatestBuildIDForBetaBuildLocalizations(requestCtx, client, appValue, stateValue)
+				buildValue, err = resolveLatestBuildIDForBetaBuildLocalizations(requestCtx, client, appValue, normalizedStateValues)
 				if err != nil {
 					return fmt.Errorf("beta-build-localizations create: %w", err)
 				}

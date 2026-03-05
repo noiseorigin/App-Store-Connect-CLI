@@ -13,7 +13,7 @@ func resolveLatestBuildIDForBetaBuildLocalizations(
 	ctx context.Context,
 	client *asc.Client,
 	appInput string,
-	stateFilter string,
+	stateValues []string,
 ) (string, error) {
 	resolvedAppID := shared.ResolveAppID(appInput)
 	if resolvedAppID == "" {
@@ -21,11 +21,6 @@ func resolveLatestBuildIDForBetaBuildLocalizations(
 	}
 
 	resolvedAppID, err := shared.ResolveAppIDWithLookup(ctx, client, resolvedAppID)
-	if err != nil {
-		return "", err
-	}
-
-	stateValues, err := normalizeLatestBuildProcessingStateFilter(stateFilter)
 	if err != nil {
 		return "", err
 	}
@@ -58,51 +53,11 @@ func resolveLatestBuildIDForBetaBuildLocalizations(
 }
 
 func normalizeLatestBuildProcessingStateFilter(raw string) ([]string, error) {
-	if strings.TrimSpace(raw) == "" {
-		return nil, nil
-	}
-
-	values := shared.SplitCSVUpper(raw)
-	if len(values) == 0 {
-		return nil, shared.UsageError("--state must include at least one state")
-	}
-
-	if len(values) == 1 && values[0] == "ALL" {
-		return []string{
-			asc.BuildProcessingStateProcessing,
-			asc.BuildProcessingStateFailed,
-			asc.BuildProcessingStateInvalid,
-			asc.BuildProcessingStateValid,
-		}, nil
-	}
-
-	allowed := map[string]struct{}{
-		asc.BuildProcessingStateValid:      {},
-		asc.BuildProcessingStateProcessing: {},
-		asc.BuildProcessingStateFailed:     {},
-		asc.BuildProcessingStateInvalid:    {},
-		"COMPLETE":                         {}, // compatibility alias for VALID
-	}
-
-	resolved := make([]string, 0, len(values))
-	seen := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		if value == "ALL" {
-			return nil, shared.UsageError("--state value \"all\" cannot be combined with other states")
-		}
-		if _, ok := allowed[value]; !ok {
-			return nil, shared.UsageError("--state must be one of PROCESSING, FAILED, INVALID, VALID, COMPLETE, or all")
-		}
-
-		if value == "COMPLETE" {
-			value = asc.BuildProcessingStateValid
-		}
-		if _, ok := seen[value]; ok {
-			continue
-		}
-		seen[value] = struct{}{}
-		resolved = append(resolved, value)
-	}
-
-	return resolved, nil
+	return shared.NormalizeBuildProcessingStateFilter(raw, shared.BuildProcessingStateFilterOptions{
+		FlagName:          "--state",
+		AllowedValuesHelp: "PROCESSING, FAILED, INVALID, VALID, COMPLETE, or all",
+		Aliases: map[string]string{
+			"COMPLETE": asc.BuildProcessingStateValid,
+		},
+	})
 }
