@@ -1,7 +1,9 @@
 package snitch
 
 import (
+	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -160,6 +162,12 @@ func TestSearchIssues(t *testing.T) {
 		if !strings.Contains(q, "repo:rudrankriyam/App-Store-Connect-CLI") {
 			t.Errorf("query missing repo filter: %s", q)
 		}
+		if !strings.Contains(q, "is:open") {
+			t.Errorf("query missing open issue filter: %s", q)
+		}
+		if !strings.Contains(q, "in:title") {
+			t.Errorf("query missing title filter: %s", q)
+		}
 		if !strings.Contains(q, "bundle ID") {
 			t.Errorf("query missing search term: %s", q)
 		}
@@ -181,7 +189,9 @@ func TestSearchIssues(t *testing.T) {
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			t.Fatalf("json.NewEncoder().Encode() error: %v", err)
+		}
 	}))
 	defer server.Close()
 
@@ -202,6 +212,112 @@ func TestSearchIssues(t *testing.T) {
 	}
 }
 
+func TestSnitchCommandPreviewWithoutConfirmDoesNotCreateIssue(t *testing.T) {
+	searchCalls := 0
+	createCalls := 0
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/search/issues":
+			searchCalls++
+			resp := map[string]any{"items": []map[string]any{}}
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(resp); err != nil {
+				t.Fatalf("json.NewEncoder().Encode() error: %v", err)
+			}
+		case "/repos/rudrankriyam/App-Store-Connect-CLI/issues":
+			createCalls++
+			t.Fatal("createIssue should not be called without --confirm")
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	origBase := githubAPIBase
+	defer func() { setGitHubAPIBase(origBase) }()
+	setGitHubAPIBase(server.URL)
+
+	t.Setenv("GITHUB_TOKEN", "test-token")
+	t.Setenv("GH_TOKEN", "")
+
+	stdout, stderr, err := runSnitchCommand(t, "1.2.3", "preview", "without", "confirm")
+	if err != nil {
+		t.Fatalf("runSnitchCommand() error: %v", err)
+	}
+	if stdout != "" {
+		t.Fatalf("expected no stdout, got %q", stdout)
+	}
+	if !strings.Contains(stderr, "Preview only: rerun with --confirm to create issue") {
+		t.Fatalf("expected preview banner, got %q", stderr)
+	}
+	if !strings.Contains(stderr, "preview without confirm") {
+		t.Fatalf("expected full multi-word description, got %q", stderr)
+	}
+	if searchCalls != 1 {
+		t.Fatalf("expected 1 search call, got %d", searchCalls)
+	}
+	if createCalls != 0 {
+		t.Fatalf("expected 0 create calls, got %d", createCalls)
+	}
+}
+
+func TestSnitchCommandConfirmCreatesIssue(t *testing.T) {
+	searchCalls := 0
+	createCalls := 0
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/search/issues":
+			searchCalls++
+			resp := map[string]any{"items": []map[string]any{}}
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(resp); err != nil {
+				t.Fatalf("json.NewEncoder().Encode() error: %v", err)
+			}
+		case "/repos/rudrankriyam/App-Store-Connect-CLI/issues":
+			createCalls++
+			resp := map[string]any{
+				"number":   77,
+				"title":    "confirmed issue",
+				"html_url": "https://github.com/rudrankriyam/App-Store-Connect-CLI/issues/77",
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			if err := json.NewEncoder(w).Encode(resp); err != nil {
+				t.Fatalf("json.NewEncoder().Encode() error: %v", err)
+			}
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	origBase := githubAPIBase
+	defer func() { setGitHubAPIBase(origBase) }()
+	setGitHubAPIBase(server.URL)
+
+	t.Setenv("GITHUB_TOKEN", "test-token")
+	t.Setenv("GH_TOKEN", "")
+
+	stdout, stderr, err := runSnitchCommand(t, "1.2.3", "--confirm", "confirmed", "issue")
+	if err != nil {
+		t.Fatalf("runSnitchCommand() error: %v", err)
+	}
+	if !strings.Contains(stderr, "Issue created: #77") {
+		t.Fatalf("expected issue creation message, got %q", stderr)
+	}
+	if !strings.Contains(stdout, `"number":77`) {
+		t.Fatalf("expected JSON stdout with issue number, got %q", stdout)
+	}
+	if searchCalls != 1 {
+		t.Fatalf("expected 1 search call, got %d", searchCalls)
+	}
+	if createCalls != 1 {
+		t.Fatalf("expected 1 create call, got %d", createCalls)
+	}
+}
+
 func TestCreateIssue(t *testing.T) {
 	var receivedPayload map[string]any
 
@@ -213,9 +329,9 @@ func TestCreateIssue(t *testing.T) {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
 
-		body, _ := json.Marshal(map[string]any{})
-		json.NewDecoder(r.Body).Decode(&receivedPayload)
-		_ = body
+		if err := json.NewDecoder(r.Body).Decode(&receivedPayload); err != nil {
+			t.Fatalf("json.NewDecoder().Decode() error: %v", err)
+		}
 
 		resp := map[string]any{
 			"number":   99,
@@ -224,7 +340,9 @@ func TestCreateIssue(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(resp)
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			t.Fatalf("json.NewEncoder().Encode() error: %v", err)
+		}
 	}))
 	defer server.Close()
 
@@ -267,8 +385,14 @@ func TestCreateIssue(t *testing.T) {
 func TestWriteLocalLog(t *testing.T) {
 	tmpDir := t.TempDir()
 	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(tmpDir)
+	defer func() {
+		if err := os.Chdir(origDir); err != nil {
+			t.Fatalf("os.Chdir restore error: %v", err)
+		}
+	}()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("os.Chdir temp dir error: %v", err)
+	}
 
 	entry := LogEntry{
 		Description: "local test entry",
@@ -312,10 +436,78 @@ func TestWriteLocalLog(t *testing.T) {
 	}
 }
 
+func TestReadLocalLogAndFormatEntries(t *testing.T) {
+	tmpDir := t.TempDir()
+	logPath := filepath.Join(tmpDir, "snitch.log")
+
+	entry := LogEntry{
+		Description: "status command needs bundle ID support",
+		Severity:    "friction",
+		Repro:       `asc status --app "com.example.app"`,
+		Expected:    "Bundle ID resolution should work",
+		Actual:      "Error: app not found",
+		Timestamp:   time.Date(2026, 3, 7, 12, 0, 0, 0, time.UTC),
+		ASCVersion:  "1.2.3",
+		OS:          "darwin/arm64",
+	}
+	data, err := json.Marshal(entry)
+	if err != nil {
+		t.Fatalf("json.Marshal() error: %v", err)
+	}
+	if err := os.WriteFile(logPath, append(data, '\n'), 0o644); err != nil {
+		t.Fatalf("os.WriteFile() error: %v", err)
+	}
+
+	entries, err := readLocalLog(logPath)
+	if err != nil {
+		t.Fatalf("readLocalLog() error: %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+
+	formatted := formatLocalEntries(entries)
+	checks := []string{
+		"[1] friction: status command needs bundle ID support",
+		"Timestamp: 2026-03-07T12:00:00Z",
+		"ASC version: 1.2.3",
+		"OS: darwin/arm64",
+		"Reproduction:",
+		`asc status --app "com.example.app"`,
+		"Expected:",
+		"Bundle ID resolution should work",
+		"Actual:",
+		"Error: app not found",
+	}
+	for _, check := range checks {
+		if !strings.Contains(formatted, check) {
+			t.Fatalf("formatted output missing %q: %q", check, formatted)
+		}
+	}
+}
+
+func TestReadLocalLogInvalidLine(t *testing.T) {
+	tmpDir := t.TempDir()
+	logPath := filepath.Join(tmpDir, "snitch.log")
+	if err := os.WriteFile(logPath, []byte("{invalid json}\n"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile() error: %v", err)
+	}
+
+	_, err := readLocalLog(logPath)
+	if err == nil {
+		t.Fatal("expected invalid log entry error")
+	}
+	if !strings.Contains(err.Error(), "line 1") {
+		t.Fatalf("expected line number in error, got %v", err)
+	}
+}
+
 func TestSearchIssuesHTTPError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
-		w.Write([]byte("rate limited"))
+		if _, err := w.Write([]byte("rate limited")); err != nil {
+			t.Fatalf("w.Write() error: %v", err)
+		}
 	}))
 	defer server.Close()
 
@@ -335,7 +527,9 @@ func TestSearchIssuesHTTPError(t *testing.T) {
 func TestCreateIssueMissingToken(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte(`{"message":"Bad credentials"}`))
+		if _, err := w.Write([]byte(`{"message":"Bad credentials"}`)); err != nil {
+			t.Fatalf("w.Write() error: %v", err)
+		}
 	}))
 	defer server.Close()
 
@@ -357,4 +551,63 @@ func TestCreateIssueMissingToken(t *testing.T) {
 	if !strings.Contains(err.Error(), "401") {
 		t.Errorf("expected 401 in error, got: %v", err)
 	}
+}
+
+func runSnitchCommand(t *testing.T, version string, args ...string) (string, string, error) {
+	t.Helper()
+
+	cmd := SnitchCommand(version)
+	cmd.FlagSet.SetOutput(io.Discard)
+
+	var runErr error
+	stdout, stderr := captureOutput(t, func() {
+		if err := cmd.Parse(args); err != nil {
+			runErr = err
+			return
+		}
+		runErr = cmd.Run(context.Background())
+	})
+
+	return stdout, stderr, runErr
+}
+
+func captureOutput(t *testing.T, fn func()) (string, string) {
+	t.Helper()
+
+	origStdout := os.Stdout
+	origStderr := os.Stderr
+
+	stdoutR, stdoutW, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe stdout error: %v", err)
+	}
+	stderrR, stderrW, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe stderr error: %v", err)
+	}
+
+	os.Stdout = stdoutW
+	os.Stderr = stderrW
+
+	stdoutDone := make(chan string, 1)
+	stderrDone := make(chan string, 1)
+	go func() {
+		data, _ := io.ReadAll(stdoutR)
+		stdoutDone <- string(data)
+	}()
+	go func() {
+		data, _ := io.ReadAll(stderrR)
+		stderrDone <- string(data)
+	}()
+
+	fn()
+
+	_ = stdoutW.Close()
+	_ = stderrW.Close()
+	os.Stdout = origStdout
+	os.Stderr = origStderr
+
+	stdout := <-stdoutDone
+	stderr := <-stderrDone
+	return stdout, stderr
 }

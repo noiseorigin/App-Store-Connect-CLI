@@ -1,6 +1,7 @@
 package snitch
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -27,7 +28,6 @@ const (
 	defaultOwner         = "rudrankriyam"
 	defaultRepo          = "App-Store-Connect-CLI"
 	maxSearchResults     = 5
-	maxLocalLogEntries   = 100
 	maxResponseBodyBytes = 8192
 )
 
@@ -56,7 +56,7 @@ func SnitchCommand(version string) *ffcli.Command {
 	severity := fs.String("severity", "bug", "Severity: bug, friction, or feature-request")
 	dryRun := fs.Bool("dry-run", false, "Search for duplicates and preview without filing")
 	local := fs.Bool("local", false, "Log to .asc/snitch.log instead of filing on GitHub")
-	confirm := fs.Bool("confirm", true, "Require confirmation before creating issue (no-op for agents)")
+	confirm := fs.Bool("confirm", false, "Create the GitHub issue after duplicate search")
 
 	return &ffcli.Command{
 		Name:       "snitch",
@@ -64,12 +64,12 @@ func SnitchCommand(version string) *ffcli.Command {
 		ShortHelp:  "Report CLI friction as a GitHub issue.",
 		LongHelp: `Report CLI friction directly from the terminal.
 
-Searches for duplicate issues before filing. Requires GITHUB_TOKEN or GH_TOKEN
-for creating issues. Use --dry-run to preview without filing, or --local to log
-friction locally for later review with "asc snitch flush".
+Searches for duplicate issues when GITHUB_TOKEN or GH_TOKEN is available.
+Without --confirm, snitch prints a preview only. Use --local to log friction
+offline for later review with "asc snitch flush".
 
 Examples:
-  asc snitch "crashes --app doesn't support bundle ID" --repro 'asc crashes --app "com.example"' --expected "Should resolve bundle ID" --actual "Error: AppId is invalid"
+  asc snitch "crashes --app doesn't support bundle ID" --repro 'asc crashes --app "com.example"' --expected "Should resolve bundle ID" --actual "Error: AppId is invalid" --confirm
   asc snitch --dry-run "group name ambiguity"
   asc snitch --local "status command needs bundle ID support"
   asc snitch flush
@@ -81,20 +81,17 @@ Examples:
 		},
 		Exec: func(ctx context.Context, args []string) error {
 			if len(args) == 0 {
-				fmt.Fprintln(os.Stderr, "Error: description is required")
-				return flag.ErrHelp
+				return shared.UsageError("description is required")
 			}
 
-			description := strings.TrimSpace(args[0])
+			description := strings.TrimSpace(strings.Join(args, " "))
 			if description == "" {
-				fmt.Fprintln(os.Stderr, "Error: description must not be empty")
-				return flag.ErrHelp
+				return shared.UsageError("description must not be empty")
 			}
 
 			sev := strings.TrimSpace(strings.ToLower(*severity))
 			if !isValidSeverity(sev) {
-				fmt.Fprintf(os.Stderr, "Error: --severity must be one of: %s\n", strings.Join(validSeverities, ", "))
-				return flag.ErrHelp
+				return shared.UsageErrorf("--severity must be one of: %s", strings.Join(validSeverities, ", "))
 			}
 
 			entry := LogEntry{
@@ -113,37 +110,30 @@ Examples:
 			}
 
 			token := resolveGitHubToken()
-
 			requestCtx, cancel := shared.ContextWithTimeout(ctx)
 			defer cancel()
 
-			// Always search for duplicates first.
-			duplicates, err := searchIssues(requestCtx, token, description)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: duplicate search failed: %v\n", err)
-				// Continue — filing is still possible.
+			if token == "" && *confirm {
+				return fmt.Errorf("snitch: GITHUB_TOKEN or GH_TOKEN is required to create issues")
 			}
 
-			if len(duplicates) > 0 {
-				fmt.Fprintf(os.Stderr, "Potentially related issues (%d):\n", len(duplicates))
-				for _, dup := range duplicates {
-					fmt.Fprintf(os.Stderr, "  #%d %s\n       %s\n", dup.Number, dup.Title, dup.HTMLURL)
+			var duplicates []GitHubIssue
+			if token != "" {
+				var err error
+				duplicates, err = searchIssues(requestCtx, token, issueTitle(entry))
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Warning: duplicate search failed: %v\n", err)
 				}
-				fmt.Fprintln(os.Stderr)
+			} else {
+				fmt.Fprintln(os.Stderr, "Note: skipping duplicate search because GITHUB_TOKEN or GH_TOKEN is not set.")
 			}
 
-			if *dryRun {
-				fmt.Fprintln(os.Stderr, "--- Dry run: would create issue ---")
-				fmt.Fprintf(os.Stderr, "Title: %s\n", issueTitle(entry))
-				fmt.Fprintf(os.Stderr, "Body:\n%s\n", issueBody(entry))
+			printPotentialDuplicates(duplicates)
+
+			if *dryRun || !*confirm {
+				printPreview(entry, *dryRun)
 				return nil
 			}
-
-			if token == "" {
-				return fmt.Errorf("snitch: GITHUB_TOKEN or GH_TOKEN is required to create issues (use --dry-run to preview, or --local to log locally)")
-			}
-
-			_ = *confirm // reserved for future interactive confirmation
 
 			issue, err := createIssue(requestCtx, token, entry)
 			if err != nil {
@@ -171,8 +161,9 @@ func flushCommand() *ffcli.Command {
 		ShortHelp:  "Review locally logged friction entries.",
 		LongHelp: `Review friction entries logged with --local.
 
-Prints all entries from .asc/snitch.log (or --file path) for review.
-Filing from flush is manual: copy the description and run "asc snitch" without --local.
+Prints all entries from .asc/snitch.log (or --file path) in a readable format.
+Filing from flush is manual: copy the description and rerun "asc snitch"
+with --confirm when you're ready to create the issue.
 
 Examples:
   asc snitch flush
@@ -185,7 +176,7 @@ Examples:
 				path = filepath.Join(".asc", "snitch.log")
 			}
 
-			data, err := os.ReadFile(path)
+			entries, err := readLocalLog(path)
 			if os.IsNotExist(err) {
 				fmt.Fprintln(os.Stderr, "No local snitch entries found.")
 				return nil
@@ -194,13 +185,12 @@ Examples:
 				return fmt.Errorf("snitch flush: %w", err)
 			}
 
-			entries := strings.TrimSpace(string(data))
-			if entries == "" {
+			if len(entries) == 0 {
 				fmt.Fprintln(os.Stderr, "No local snitch entries found.")
 				return nil
 			}
 
-			fmt.Fprintln(os.Stdout, entries)
+			fmt.Fprint(os.Stdout, formatLocalEntries(entries))
 			return nil
 		},
 	}
@@ -289,9 +279,96 @@ func issueBody(e LogEntry) string {
 	return b.String()
 }
 
+func printPotentialDuplicates(duplicates []GitHubIssue) {
+	if len(duplicates) == 0 {
+		return
+	}
+
+	fmt.Fprintf(os.Stderr, "Potentially related issues (%d):\n", len(duplicates))
+	for _, dup := range duplicates {
+		fmt.Fprintf(os.Stderr, "  #%d %s\n       %s\n", dup.Number, dup.Title, dup.HTMLURL)
+	}
+	fmt.Fprintln(os.Stderr)
+}
+
+func printPreview(entry LogEntry, dryRun bool) {
+	if dryRun {
+		fmt.Fprintln(os.Stderr, "--- Dry run: would create issue ---")
+	} else {
+		fmt.Fprintln(os.Stderr, "--- Preview only: rerun with --confirm to create issue ---")
+	}
+	fmt.Fprintf(os.Stderr, "Title: %s\n", issueTitle(entry))
+	fmt.Fprintf(os.Stderr, "Body:\n%s\n", issueBody(entry))
+}
+
+func readLocalLog(path string) ([]LogEntry, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	trimmed := strings.TrimSpace(string(data))
+	if trimmed == "" {
+		return nil, nil
+	}
+
+	scanner := bufio.NewScanner(strings.NewReader(trimmed))
+	entries := make([]LogEntry, 0)
+	lineNumber := 0
+	for scanner.Scan() {
+		lineNumber++
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+
+		var entry LogEntry
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			return nil, fmt.Errorf("invalid log entry on line %d: %w", lineNumber, err)
+		}
+		entries = append(entries, entry)
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return entries, nil
+}
+
+func formatLocalEntries(entries []LogEntry) string {
+	var b strings.Builder
+
+	for i, entry := range entries {
+		fmt.Fprintf(&b, "[%d] %s: %s\n", i+1, entry.Severity, entry.Description)
+		if !entry.Timestamp.IsZero() {
+			fmt.Fprintf(&b, "Timestamp: %s\n", entry.Timestamp.Format(time.RFC3339))
+		}
+		if entry.ASCVersion != "" {
+			fmt.Fprintf(&b, "ASC version: %s\n", entry.ASCVersion)
+		}
+		if entry.OS != "" {
+			fmt.Fprintf(&b, "OS: %s\n", entry.OS)
+		}
+		if entry.Repro != "" {
+			fmt.Fprintf(&b, "Reproduction:\n%s\n", entry.Repro)
+		}
+		if entry.Expected != "" {
+			fmt.Fprintf(&b, "Expected:\n%s\n", entry.Expected)
+		}
+		if entry.Actual != "" {
+			fmt.Fprintf(&b, "Actual:\n%s\n", entry.Actual)
+		}
+		if i < len(entries)-1 {
+			b.WriteString("\n")
+		}
+	}
+
+	return b.String()
+}
+
 func searchIssues(ctx context.Context, token string, query string) ([]GitHubIssue, error) {
-	// Search query: look in the asc repo for open issues matching the description.
-	q := fmt.Sprintf("%s repo:%s/%s is:issue", query, defaultOwner, defaultRepo)
+	// Search open issue titles first to reduce noisy matches from generic terms.
+	q := fmt.Sprintf("repo:%s/%s is:issue is:open in:title %q", defaultOwner, defaultRepo, strings.TrimSpace(query))
 	searchURL := fmt.Sprintf("%s/search/issues?q=%s&per_page=%d",
 		githubAPIBase, url.QueryEscape(q), maxSearchResults)
 

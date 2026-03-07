@@ -68,16 +68,50 @@ func TestSnitchDryRunNoToken(t *testing.T) {
 	if !strings.Contains(stderr, "Dry run: would create issue") {
 		t.Fatalf("expected dry-run output, got %q", stderr)
 	}
+	if !strings.Contains(stderr, "skipping duplicate search") {
+		t.Fatalf("expected offline duplicate search note, got %q", stderr)
+	}
 	if !strings.Contains(stderr, "test dry run") {
 		t.Fatalf("expected issue title in dry-run output, got %q", stderr)
+	}
+}
+
+func TestSnitchPreviewWithoutConfirmNoToken(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "")
+	t.Setenv("GH_TOKEN", "")
+
+	root := RootCommand("1.2.3")
+	root.FlagSet.SetOutput(io.Discard)
+
+	_, stderr := captureOutput(t, func() {
+		if err := root.Parse([]string{"snitch", "preview", "without", "confirm"}); err != nil {
+			t.Fatalf("parse error: %v", err)
+		}
+		err := root.Run(context.Background())
+		if err != nil {
+			t.Fatalf("expected preview mode without confirm, got %v", err)
+		}
+	})
+
+	if !strings.Contains(stderr, "Preview only: rerun with --confirm to create issue") {
+		t.Fatalf("expected preview-only message, got %q", stderr)
+	}
+	if !strings.Contains(stderr, "preview without confirm") {
+		t.Fatalf("expected full multi-word description, got %q", stderr)
 	}
 }
 
 func TestSnitchLocalLog(t *testing.T) {
 	tmpDir := t.TempDir()
 	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(tmpDir)
+	defer func() {
+		if err := os.Chdir(origDir); err != nil {
+			t.Fatalf("os.Chdir restore error: %v", err)
+		}
+	}()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("os.Chdir temp dir error: %v", err)
+	}
 
 	root := RootCommand("1.2.3")
 	root.FlagSet.SetOutput(io.Discard)
@@ -96,7 +130,7 @@ func TestSnitchLocalLog(t *testing.T) {
 	}
 }
 
-func TestSnitchNoTokenReturnsError(t *testing.T) {
+func TestSnitchConfirmNoTokenReturnsError(t *testing.T) {
 	t.Setenv("GITHUB_TOKEN", "")
 	t.Setenv("GH_TOKEN", "")
 
@@ -104,7 +138,7 @@ func TestSnitchNoTokenReturnsError(t *testing.T) {
 	root.FlagSet.SetOutput(io.Discard)
 
 	_, _ = captureOutput(t, func() {
-		if err := root.Parse([]string{"snitch", "test without token"}); err != nil {
+		if err := root.Parse([]string{"snitch", "--confirm", "test without token"}); err != nil {
 			t.Fatalf("parse error: %v", err)
 		}
 		err := root.Run(context.Background())
@@ -120,8 +154,14 @@ func TestSnitchNoTokenReturnsError(t *testing.T) {
 func TestSnitchFlushNoFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(tmpDir)
+	defer func() {
+		if err := os.Chdir(origDir); err != nil {
+			t.Fatalf("os.Chdir restore error: %v", err)
+		}
+	}()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("os.Chdir temp dir error: %v", err)
+	}
 
 	root := RootCommand("1.2.3")
 	root.FlagSet.SetOutput(io.Discard)
@@ -137,5 +177,52 @@ func TestSnitchFlushNoFile(t *testing.T) {
 
 	if !strings.Contains(stderr, "No local snitch entries found") {
 		t.Fatalf("expected no entries message, got %q", stderr)
+	}
+}
+
+func TestSnitchFlushFormatsEntries(t *testing.T) {
+	tmpDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	defer func() {
+		if err := os.Chdir(origDir); err != nil {
+			t.Fatalf("os.Chdir restore error: %v", err)
+		}
+	}()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("os.Chdir temp dir error: %v", err)
+	}
+
+	root := RootCommand("1.2.3")
+	root.FlagSet.SetOutput(io.Discard)
+
+	_, _ = captureOutput(t, func() {
+		if err := root.Parse([]string{"snitch", "--local", "--repro", `asc status --app "com.example.app"`, "status command needs bundle ID support"}); err != nil {
+			t.Fatalf("parse error: %v", err)
+		}
+		if err := root.Run(context.Background()); err != nil {
+			t.Fatalf("run error: %v", err)
+		}
+	})
+
+	flushRoot := RootCommand("1.2.3")
+	flushRoot.FlagSet.SetOutput(io.Discard)
+
+	stdout, stderr := captureOutput(t, func() {
+		if err := flushRoot.Parse([]string{"snitch", "flush"}); err != nil {
+			t.Fatalf("parse error: %v", err)
+		}
+		if err := flushRoot.Run(context.Background()); err != nil {
+			t.Fatalf("run error: %v", err)
+		}
+	})
+
+	if stderr != "" {
+		t.Fatalf("expected no stderr, got %q", stderr)
+	}
+	if !strings.Contains(stdout, "[1] bug: status command needs bundle ID support") {
+		t.Fatalf("expected formatted flush output, got %q", stdout)
+	}
+	if !strings.Contains(stdout, `asc status --app "com.example.app"`) {
+		t.Fatalf("expected reproduction details in flush output, got %q", stdout)
 	}
 }

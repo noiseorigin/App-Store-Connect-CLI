@@ -150,6 +150,7 @@ asc <subcommand> [flags]
 - `release-notes` - Generate and manage App Store release notes.
 - `workflow` - Run multi-step automation workflows.
 - `metadata` - Manage app metadata with deterministic file workflows.
+- `snitch` - Report CLI friction as a GitHub issue.
 
 ## Scripting Tips
 
