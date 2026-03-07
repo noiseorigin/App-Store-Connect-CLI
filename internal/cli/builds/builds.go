@@ -198,12 +198,14 @@ func resolveBuildBetaGroupIDsFromList(inputGroups []string, groups *asc.BetaGrou
 
 	groupIDs := make(map[string]struct{}, len(groups.Data))
 	groupNameToIDs := make(map[string][]string)
+	groupInternal := make(map[string]bool, len(groups.Data))
 	for _, item := range groups.Data {
 		id := strings.TrimSpace(item.ID)
 		if id == "" {
 			continue
 		}
 		groupIDs[id] = struct{}{}
+		groupInternal[id] = item.Attributes.IsInternalGroup
 
 		name := strings.TrimSpace(item.Attributes.Name)
 		if name == "" {
@@ -234,7 +236,9 @@ func resolveBuildBetaGroupIDsFromList(inputGroups []string, groups *asc.BetaGrou
 			case 1:
 				resolvedID = matches[0]
 			default:
-				return nil, fmt.Errorf("multiple beta groups named %q; use group ID", group)
+				return nil, fmt.Errorf("%s\n%s",
+					formatAmbiguousGroupError(group, matches, groupInternal),
+					"Use the group ID to disambiguate, or --skip-internal to exclude internal groups.")
 			}
 		}
 
@@ -249,6 +253,19 @@ func resolveBuildBetaGroupIDsFromList(inputGroups []string, groups *asc.BetaGrou
 		return nil, fmt.Errorf("at least one beta group is required")
 	}
 	return resolved, nil
+}
+
+func formatAmbiguousGroupError(name string, matchIDs []string, internalByID map[string]bool) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "%q matches %d beta groups:", name, len(matchIDs))
+	for _, id := range matchIDs {
+		kind := "external"
+		if internalByID[id] {
+			kind = "internal"
+		}
+		fmt.Fprintf(&b, "\n  %s (%s)", id, kind)
+	}
+	return b.String()
 }
 
 // BuildsRemoveGroupsCommand returns the builds remove-groups subcommand.

@@ -56,8 +56,8 @@ func TestResolveBuildBetaGroupIDsFromList_Deduplicates(t *testing.T) {
 func TestResolveBuildBetaGroupIDsFromList_AmbiguousName(t *testing.T) {
 	groups := &asc.BetaGroupsResponse{
 		Data: []asc.Resource[asc.BetaGroupAttributes]{
-			{ID: "group-1", Attributes: asc.BetaGroupAttributes{Name: "Beta"}},
-			{ID: "group-2", Attributes: asc.BetaGroupAttributes{Name: "Beta"}},
+			{ID: "group-1", Attributes: asc.BetaGroupAttributes{Name: "Beta", IsInternalGroup: true}},
+			{ID: "group-2", Attributes: asc.BetaGroupAttributes{Name: "Beta", IsInternalGroup: false}},
 		},
 	}
 
@@ -65,8 +65,18 @@ func TestResolveBuildBetaGroupIDsFromList_AmbiguousName(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected ambiguous name error")
 	}
-	if !strings.Contains(err.Error(), "multiple beta groups named") {
-		t.Fatalf("expected ambiguous error, got %v", err)
+	errMsg := err.Error()
+	if !strings.Contains(errMsg, `"Beta" matches 2 beta groups`) {
+		t.Fatalf("expected ambiguous header, got %v", err)
+	}
+	if !strings.Contains(errMsg, "group-1 (internal)") {
+		t.Fatalf("expected internal label for group-1, got %v", err)
+	}
+	if !strings.Contains(errMsg, "group-2 (external)") {
+		t.Fatalf("expected external label for group-2, got %v", err)
+	}
+	if !strings.Contains(errMsg, "--skip-internal") {
+		t.Fatalf("expected --skip-internal hint, got %v", err)
 	}
 }
 
