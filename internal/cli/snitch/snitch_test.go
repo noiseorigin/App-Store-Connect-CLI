@@ -411,6 +411,13 @@ func TestWriteLocalLog(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to read log file: %v", err)
 	}
+	info, err := os.Stat(logPath)
+	if err != nil {
+		t.Fatalf("failed to stat log file: %v", err)
+	}
+	if got := info.Mode().Perm() & 0o077; got != 0 {
+		t.Fatalf("expected log file to be private, got mode %o", info.Mode().Perm())
+	}
 
 	var decoded LogEntry
 	if err := json.Unmarshal([]byte(strings.TrimSpace(string(data))), &decoded); err != nil {
@@ -433,6 +440,46 @@ func TestWriteLocalLog(t *testing.T) {
 	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
 	if len(lines) != 2 {
 		t.Errorf("expected 2 log lines, got %d", len(lines))
+	}
+}
+
+func TestWriteLocalLogSecuresExistingFilePermissions(t *testing.T) {
+	tmpDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	defer func() {
+		if err := os.Chdir(origDir); err != nil {
+			t.Fatalf("os.Chdir restore error: %v", err)
+		}
+	}()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("os.Chdir temp dir error: %v", err)
+	}
+
+	if err := os.MkdirAll(".asc", 0o755); err != nil {
+		t.Fatalf("os.MkdirAll() error: %v", err)
+	}
+	logPath := filepath.Join(".asc", "snitch.log")
+	if err := os.WriteFile(logPath, []byte(""), 0o644); err != nil {
+		t.Fatalf("os.WriteFile() error: %v", err)
+	}
+
+	entry := LogEntry{
+		Description: "secure existing file",
+		Severity:    "bug",
+		ASCVersion:  "0.37.2",
+		OS:          "darwin/arm64",
+		Timestamp:   time.Now().UTC(),
+	}
+	if err := writeLocalLog(entry); err != nil {
+		t.Fatalf("writeLocalLog() error: %v", err)
+	}
+
+	info, err := os.Stat(logPath)
+	if err != nil {
+		t.Fatalf("os.Stat() error: %v", err)
+	}
+	if got := info.Mode().Perm() & 0o077; got != 0 {
+		t.Fatalf("expected existing log file permissions to be tightened, got mode %o", info.Mode().Perm())
 	}
 }
 

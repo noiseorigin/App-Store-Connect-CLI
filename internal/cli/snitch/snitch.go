@@ -525,11 +525,15 @@ func writeLocalLog(entry LogEntry) error {
 		return fmt.Errorf("snitch: failed to marshal entry: %w", err)
 	}
 
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return fmt.Errorf("snitch: failed to open %s: %w", path, err)
 	}
 	defer f.Close()
+
+	if err := f.Chmod(0o600); err != nil {
+		return fmt.Errorf("snitch: failed to set secure permissions on %s: %w", path, err)
+	}
 
 	if _, err := f.Write(append(data, '\n')); err != nil {
 		return fmt.Errorf("snitch: failed to write entry: %w", err)
