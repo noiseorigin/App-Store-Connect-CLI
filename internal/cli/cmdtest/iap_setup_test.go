@@ -493,34 +493,6 @@ func TestIAPSetupCreateLocalizationAndPricingSuccess(t *testing.T) {
 				Body:       io.NopCloser(strings.NewReader(body)),
 				Header:     http.Header{"Content-Type": []string{"application/json"}},
 			}, nil
-		case 9:
-			if req.Method != http.MethodGet || req.URL.Path != "/v2/inAppPurchases/iap-1/iapPriceSchedule" {
-				t.Fatalf("unexpected verify current price point schedule request: %s %s", req.Method, req.URL.String())
-			}
-			body := `{
-				"data":{
-					"type":"inAppPurchasePriceSchedules",
-					"id":"sched-1",
-					"relationships":{"baseTerritory":{"data":{"type":"territories","id":"USA"}}}
-				},
-				"included":[
-					{
-						"type":"inAppPurchasePrices",
-						"id":"price-1",
-						"attributes":{"startDate":"2026-03-01","manual":true},
-						"relationships":{
-							"territory":{"data":{"type":"territories","id":"USA"}},
-							"inAppPurchasePricePoint":{"data":{"type":"inAppPurchasePricePoints","id":"pp-399"}}
-						}
-					},
-					{"type":"territories","id":"USA","attributes":{"currency":"USD"}}
-				]
-			}`
-			return &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       io.NopCloser(strings.NewReader(body)),
-				Header:     http.Header{"Content-Type": []string{"application/json"}},
-			}, nil
 		default:
 			t.Fatalf("unexpected extra request: %s %s", req.Method, req.URL.String())
 			return nil, nil
@@ -557,7 +529,7 @@ func TestIAPSetupCreateLocalizationAndPricingSuccess(t *testing.T) {
 	if stderr != "" {
 		t.Fatalf("expected empty stderr, got %q", stderr)
 	}
-	if requestCount != 9 {
+	if requestCount != 8 {
 		t.Fatalf("expected create, localization, resolution, schedule, and verify reads, got %d requests", requestCount)
 	}
 	if err := json.Unmarshal([]byte(stdout), &result); err != nil {
