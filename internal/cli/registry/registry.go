@@ -49,7 +49,6 @@ import (
 	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/nominations"
 	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/notarization"
 	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/notify"
-	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/offercodes"
 	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/passtypeids"
 	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/performance"
 	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/preorders"
@@ -57,7 +56,6 @@ import (
 	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/pricing"
 	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/productpages"
 	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/profiles"
-	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/promotedpurchases"
 	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/publish"
 	releasecmd "github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/release"
 	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/releasenotes"
@@ -79,7 +77,6 @@ import (
 	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/videopreviews"
 	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/web"
 	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/webhooks"
-	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/winbackoffers"
 	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/workflow"
 	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/xcodecloud"
 )
@@ -100,33 +97,6 @@ func VersionCommand(version string) *ffcli.Command {
 
 // Subcommands returns all root subcommands in display order.
 func Subcommands(version string) []*ffcli.Command {
-	deprecatedOfferCodes := shared.HideCommandFromParentHelp(shared.DeprecateCommandTree(offercodes.OfferCodesCommand(), shared.CommandTreeDeprecationConfig{
-		CurrentPrefix:     "asc offer-codes",
-		ReplacementPrefix: "asc subscriptions offer-codes",
-		RewriteLongHelp:   true,
-	}))
-
-	deprecatedWinBackOffers := shared.HideCommandFromParentHelp(shared.DeprecateCommandTree(winbackoffers.WinBackOffersCommand(), shared.CommandTreeDeprecationConfig{
-		CurrentPrefix:     "asc win-back-offers",
-		ReplacementPrefix: "asc subscriptions win-back-offers",
-		RewriteLongHelp:   true,
-	}))
-
-	deprecatedPromotedPurchases := shared.HideCommandFromParentHelp(shared.DeprecateCommandTree(promotedpurchases.PromotedPurchasesCommand(), shared.CommandTreeDeprecationConfig{
-		Notice:          `DEPRECATED: Use "asc subscriptions promoted-purchases ..." for subscriptions or "asc iap promoted-purchases ..." for in-app purchases.`,
-		Warning:         `Warning: "asc promoted-purchases" is deprecated. Use "asc subscriptions promoted-purchases ..." for subscriptions or "asc iap promoted-purchases ..." for in-app purchases.`,
-		RewriteLongHelp: false,
-	}))
-	if deprecatedPromotedPurchases != nil {
-		deprecatedPromotedPurchases.LongHelp = `DEPRECATED: Use the canonical product-specific paths instead.
-
-Examples:
-  asc subscriptions promoted-purchases list --app "APP_ID"
-  asc subscriptions promoted-purchases create --app "APP_ID" --product-id "SUB_ID" --visible-for-all-users true
-  asc iap promoted-purchases list --app "APP_ID"
-  asc iap promoted-purchases create --app "APP_ID" --product-id "IAP_ID" --visible-for-all-users true`
-	}
-
 	subs := []*ffcli.Command{
 		auth.AuthCommand(),
 		auth.AuthDoctorCommand(),
@@ -160,8 +130,6 @@ Examples:
 		certificates.CertificatesCommand(),
 		passtypeids.PassTypeIDsCommand(),
 		profiles.ProfilesCommand(),
-		deprecatedOfferCodes,
-		deprecatedWinBackOffers,
 		users.UsersCommand(),
 		actors.ActorsCommand(),
 		devices.DevicesCommand(),
@@ -202,7 +170,6 @@ Examples:
 		agerating.AgeRatingCommand(),
 		accessibility.AccessibilityCommand(),
 		encryption.EncryptionCommand(),
-		deprecatedPromotedPurchases,
 		migrate.MigrateCommand(),
 		notify.NotifyCommand(),
 		gamecenter.GameCenterCommand(),
@@ -211,6 +178,6 @@ Examples:
 		VersionCommand(version),
 	}
 
-	subs = append(subs, completion.CompletionCommand(shared.VisibleHelpSubcommands(subs)))
+	subs = append(subs, completion.CompletionCommand(subs))
 	return subs
 }

@@ -593,7 +593,7 @@ func TestUsersVisibleAppsGetPaginateFromNextWithoutIDPhase63(t *testing.T) {
 	)
 }
 
-func runLegacyWinBackOffersInvalidNextURLCases(
+func runSubscriptionsWinBackInvalidNextURLCases(
 	t *testing.T,
 	argsPrefix []string,
 	wantErrPrefix string,
@@ -641,12 +641,14 @@ func runLegacyWinBackOffersInvalidNextURLCases(
 			if stdout != "" {
 				t.Fatalf("expected empty stdout, got %q", stdout)
 			}
-			assertOnlyDeprecatedCommandWarnings(t, stderr)
+			if stderr != "" {
+				t.Fatalf("expected empty stderr, got %q", stderr)
+			}
 		})
 	}
 }
 
-func runLegacyWinBackOffersPaginateFromNext(
+func runSubscriptionsWinBackPaginateFromNext(
 	t *testing.T,
 	argsPrefix []string,
 	firstURL string,
@@ -707,7 +709,9 @@ func runLegacyWinBackOffersPaginateFromNext(
 		}
 	})
 
-	assertOnlyDeprecatedCommandWarnings(t, stderr)
+	if stderr != "" {
+		t.Fatalf("expected empty stderr, got %q", stderr)
+	}
 	for _, id := range wantIDs {
 		needle := `"id":"` + id + `"`
 		if !strings.Contains(stdout, needle) {
@@ -717,10 +721,10 @@ func runLegacyWinBackOffersPaginateFromNext(
 }
 
 func TestWinBackOffersListRejectsInvalidNextURLPhase63(t *testing.T) {
-	runLegacyWinBackOffersInvalidNextURLCases(
+	runSubscriptionsWinBackInvalidNextURLCases(
 		t,
-		[]string{"win-back-offers", "list"},
-		"win-back-offers list: --next",
+		[]string{"subscriptions", "offers", "win-back", "list"},
+		"subscriptions offers win-back list: --next",
 	)
 }
 
@@ -731,9 +735,9 @@ func TestWinBackOffersListPaginateFromNextWithoutSubscriptionPhase63(t *testing.
 	firstBody := `{"data":[{"type":"winBackOffers","id":"win-back-offer-next-1"}],"links":{"next":"` + secondURL + `"}}`
 	secondBody := `{"data":[{"type":"winBackOffers","id":"win-back-offer-next-2"}],"links":{"next":""}}`
 
-	runLegacyWinBackOffersPaginateFromNext(
+	runSubscriptionsWinBackPaginateFromNext(
 		t,
-		[]string{"win-back-offers", "list"},
+		[]string{"subscriptions", "offers", "win-back", "list"},
 		firstURL,
 		secondURL,
 		firstBody,
@@ -744,10 +748,10 @@ func TestWinBackOffersListPaginateFromNextWithoutSubscriptionPhase63(t *testing.
 }
 
 func TestWinBackOffersPricesRejectsInvalidNextURLPhase63(t *testing.T) {
-	runLegacyWinBackOffersInvalidNextURLCases(
+	runSubscriptionsWinBackInvalidNextURLCases(
 		t,
-		[]string{"win-back-offers", "prices"},
-		"win-back-offers prices: --next",
+		[]string{"subscriptions", "offers", "win-back", "prices"},
+		"subscriptions offers win-back prices: --next",
 	)
 }
 
@@ -758,9 +762,9 @@ func TestWinBackOffersPricesPaginateFromNextWithoutIDPhase63(t *testing.T) {
 	firstBody := `{"data":[{"type":"winBackOfferPrices","id":"win-back-offer-price-next-1"}],"links":{"next":"` + secondURL + `"}}`
 	secondBody := `{"data":[{"type":"winBackOfferPrices","id":"win-back-offer-price-next-2"}],"links":{"next":""}}`
 
-	runLegacyWinBackOffersPaginateFromNext(
+	runSubscriptionsWinBackPaginateFromNext(
 		t,
-		[]string{"win-back-offers", "prices"},
+		[]string{"subscriptions", "offers", "win-back", "prices"},
 		firstURL,
 		secondURL,
 		firstBody,
@@ -771,10 +775,10 @@ func TestWinBackOffersPricesPaginateFromNextWithoutIDPhase63(t *testing.T) {
 }
 
 func TestWinBackOffersPricesRelationshipsRejectsInvalidNextURLPhase63(t *testing.T) {
-	runLegacyWinBackOffersInvalidNextURLCases(
+	runSubscriptionsWinBackInvalidNextURLCases(
 		t,
-		[]string{"win-back-offers", "prices-relationships"},
-		"win-back-offers prices-relationships: --next",
+		[]string{"subscriptions", "offers", "win-back", "prices-relationships"},
+		"subscriptions offers win-back prices-relationships: --next",
 	)
 }
 
@@ -785,9 +789,9 @@ func TestWinBackOffersPricesRelationshipsPaginateFromNextWithoutIDPhase63(t *tes
 	firstBody := `{"data":[{"type":"winBackOfferPrices","id":"win-back-offer-price-link-next-1"}],"links":{"next":"` + secondURL + `"}}`
 	secondBody := `{"data":[{"type":"winBackOfferPrices","id":"win-back-offer-price-link-next-2"}],"links":{"next":""}}`
 
-	runLegacyWinBackOffersPaginateFromNext(
+	runSubscriptionsWinBackPaginateFromNext(
 		t,
-		[]string{"win-back-offers", "prices-relationships"},
+		[]string{"subscriptions", "offers", "win-back", "prices-relationships"},
 		firstURL,
 		secondURL,
 		firstBody,
@@ -798,10 +802,10 @@ func TestWinBackOffersPricesRelationshipsPaginateFromNextWithoutIDPhase63(t *tes
 }
 
 func TestWinBackOffersRelationshipsRejectsInvalidNextURLPhase63(t *testing.T) {
-	runLegacyWinBackOffersInvalidNextURLCases(
+	runSubscriptionsWinBackInvalidNextURLCases(
 		t,
-		[]string{"win-back-offers", "relationships"},
-		"win-back-offers relationships: --next",
+		[]string{"subscriptions", "offers", "win-back", "relationships"},
+		"subscriptions offers win-back relationships: --next",
 	)
 }
 
@@ -812,9 +816,9 @@ func TestWinBackOffersRelationshipsPaginateFromNextWithoutSubscriptionPhase63(t 
 	firstBody := `{"data":[{"type":"winBackOffers","id":"win-back-offer-link-next-1"}],"links":{"next":"` + secondURL + `"}}`
 	secondBody := `{"data":[{"type":"winBackOffers","id":"win-back-offer-link-next-2"}],"links":{"next":""}}`
 
-	runLegacyWinBackOffersPaginateFromNext(
+	runSubscriptionsWinBackPaginateFromNext(
 		t,
-		[]string{"win-back-offers", "relationships"},
+		[]string{"subscriptions", "offers", "win-back", "relationships"},
 		firstURL,
 		secondURL,
 		firstBody,

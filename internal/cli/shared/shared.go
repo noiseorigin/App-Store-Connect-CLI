@@ -211,12 +211,11 @@ func DefaultUsageFunc(c *ffcli.Command) string {
 	}
 
 	// SUBCOMMANDS
-	subcommands := VisibleHelpSubcommands(c.Subcommands)
-	if len(subcommands) > 0 {
+	if len(c.Subcommands) > 0 {
 		b.WriteString(Bold("SUBCOMMANDS"))
 		b.WriteString("\n")
 		tw := tabwriter.NewWriter(&b, 0, 2, 2, ' ', 0)
-		for _, sub := range subcommands {
+		for _, sub := range c.Subcommands {
 			fmt.Fprintf(tw, "  %s\t%s\n", sub.Name, sub.ShortHelp)
 		}
 		tw.Flush()
@@ -225,15 +224,12 @@ func DefaultUsageFunc(c *ffcli.Command) string {
 
 	// FLAGS
 	if c.FlagSet != nil {
-		hasFlags := false
-		c.FlagSet.VisitAll(func(*flag.Flag) {
-			hasFlags = true
-		})
-		if hasFlags {
+		visibleFlags := VisibleHelpFlags(c.FlagSet)
+		if len(visibleFlags) > 0 {
 			b.WriteString(Bold("FLAGS"))
 			b.WriteString("\n")
 			tw := tabwriter.NewWriter(&b, 0, 2, 2, ' ', 0)
-			c.FlagSet.VisitAll(func(f *flag.Flag) {
+			for _, f := range visibleFlags {
 				def := f.DefValue
 				usage := f.Usage
 				if f.Name == "output" {
@@ -241,10 +237,10 @@ func DefaultUsageFunc(c *ffcli.Command) string {
 				}
 				if def != "" {
 					fmt.Fprintf(tw, "  --%-12s %s (default: %s)\n", f.Name, usage, def)
-					return
+					continue
 				}
 				fmt.Fprintf(tw, "  --%-12s %s\n", f.Name, usage)
-			})
+			}
 			tw.Flush()
 			b.WriteString("\n")
 		}

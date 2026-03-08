@@ -23,11 +23,11 @@ type CommandTreeDeprecationConfig struct {
 
 var hiddenCommandHelpRegistry struct {
 	sync.RWMutex
-	commands map[*ffcli.Command]struct{}
+	flags map[*flag.Flag]struct{}
 }
 
 func init() {
-	hiddenCommandHelpRegistry.commands = make(map[*ffcli.Command]struct{})
+	hiddenCommandHelpRegistry.flags = make(map[*flag.Flag]struct{})
 }
 
 // RewriteCommandTreePath rewrites usage/help path prefixes for an existing command tree.
@@ -65,38 +65,32 @@ func RewriteCommandTreePath(cmd *ffcli.Command, currentPrefix, replacementPrefix
 	return cmd
 }
 
-// HideCommandFromParentHelp hides a command from its parent's help output while keeping it executable.
-func HideCommandFromParentHelp(cmd *ffcli.Command) *ffcli.Command {
-	if cmd == nil {
-		return nil
+// HideFlagFromHelp hides a flag from command help output while keeping it accepted at runtime.
+func HideFlagFromHelp(f *flag.Flag) {
+	if f == nil {
+		return
 	}
-
 	hiddenCommandHelpRegistry.Lock()
-	hiddenCommandHelpRegistry.commands[cmd] = struct{}{}
+	hiddenCommandHelpRegistry.flags[f] = struct{}{}
 	hiddenCommandHelpRegistry.Unlock()
-	return cmd
 }
 
-// VisibleHelpSubcommands returns the subcommands that should appear in help output.
-func VisibleHelpSubcommands(subcommands []*ffcli.Command) []*ffcli.Command {
-	if len(subcommands) == 0 {
+// VisibleHelpFlags returns the flags that should appear in help output.
+func VisibleHelpFlags(fs *flag.FlagSet) []*flag.Flag {
+	if fs == nil {
 		return nil
 	}
 
 	hiddenCommandHelpRegistry.RLock()
 	defer hiddenCommandHelpRegistry.RUnlock()
 
-	visible := make([]*ffcli.Command, 0, len(subcommands))
-	for _, sub := range subcommands {
-		if sub == nil {
-			continue
+	visible := []*flag.Flag{}
+	fs.VisitAll(func(f *flag.Flag) {
+		if _, hidden := hiddenCommandHelpRegistry.flags[f]; hidden {
+			return
 		}
-		if _, hidden := hiddenCommandHelpRegistry.commands[sub]; hidden {
-			continue
-		}
-		visible = append(visible, sub)
-	}
-
+		visible = append(visible, f)
+	})
 	return visible
 }
 

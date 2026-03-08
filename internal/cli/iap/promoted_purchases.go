@@ -43,6 +43,10 @@ Examples:
 
 	if productTypeFlag := createCmd.FlagSet.Lookup("product-type"); productTypeFlag != nil {
 		productTypeFlag.Usage = "Product type: IN_APP_PURCHASE (fixed for this command)"
+		shared.HideFlagFromHelp(productTypeFlag)
+	}
+	if productIDFlag := createCmd.FlagSet.Lookup("product-id"); productIDFlag != nil {
+		productIDFlag.Usage = "In-app purchase ID"
 	}
 
 	originalExec := createCmd.Exec

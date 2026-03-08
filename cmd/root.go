@@ -50,9 +50,8 @@ func RootCommand(version string) *ffcli.Command {
 		}
 		if len(args) > 0 {
 			rootSubcommandNamesOnce.Do(func() {
-				visibleSubcommands := shared.VisibleHelpSubcommands(root.Subcommands)
-				rootSubcommandNames = make([]string, 0, len(visibleSubcommands))
-				for _, sub := range visibleSubcommands {
+				rootSubcommandNames = make([]string, 0, len(root.Subcommands))
+				for _, sub := range root.Subcommands {
 					rootSubcommandNames = append(rootSubcommandNames, sub.Name)
 				}
 			})

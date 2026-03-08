@@ -2,8 +2,6 @@ package cmdtest
 
 import (
 	"context"
-	"errors"
-	"flag"
 	"io"
 	"strings"
 	"testing"
@@ -17,26 +15,90 @@ func TestSubscriptionsHelpShowsCanonicalCommerceSubcommands(t *testing.T) {
 		t.Fatal("expected subscriptions command")
 	}
 	subscriptionsUsage := subscriptionsCmd.UsageFunc(subscriptionsCmd)
-	if !strings.Contains(subscriptionsUsage, "  win-back-offers") {
-		t.Fatalf("expected subscriptions help to list win-back-offers, got %q", subscriptionsUsage)
+	for _, expected := range []string{"pricing", "offers", "review", "promoted-purchases"} {
+		if !usageListsSubcommand(subscriptionsUsage, expected) {
+			t.Fatalf("expected subscriptions help to list %s, got %q", expected, subscriptionsUsage)
+		}
 	}
-	if !strings.Contains(subscriptionsUsage, "  promoted-purchases") {
-		t.Fatalf("expected subscriptions help to list promoted-purchases, got %q", subscriptionsUsage)
-	}
-	if usageListsSubcommand(subscriptionsUsage, "promoted-purchase") {
-		t.Fatalf("expected subscriptions help to hide deprecated singular promoted-purchase shim, got %q", subscriptionsUsage)
+	for _, hidden := range []string{
+		"prices",
+		"availability",
+		"price-points",
+		"introductory-offers",
+		"promotional-offers",
+		"offer-codes",
+		"win-back-offers",
+		"review-screenshots",
+		"app-store-review-screenshot",
+		"submit",
+		"promoted-purchase",
+	} {
+		if usageListsSubcommand(subscriptionsUsage, hidden) {
+			t.Fatalf("expected subscriptions help to hide deprecated flat subcommand %s, got %q", hidden, subscriptionsUsage)
+		}
 	}
 
-	offerCodesCmd := findSubcommand(root, "subscriptions", "offer-codes")
+	groupsCmd := findSubcommand(root, "subscriptions", "groups")
+	if groupsCmd == nil {
+		t.Fatal("expected subscriptions groups command")
+	}
+	groupsUsage := groupsCmd.UsageFunc(groupsCmd)
+	if usageListsSubcommand(groupsUsage, "submit") {
+		t.Fatalf("expected subscriptions groups help to hide deprecated submit shim, got %q", groupsUsage)
+	}
+
+	pricingCmd := findSubcommand(root, "subscriptions", "pricing")
+	if pricingCmd == nil {
+		t.Fatal("expected subscriptions pricing command")
+	}
+	pricingUsage := pricingCmd.UsageFunc(pricingCmd)
+	for _, expected := range []string{"summary", "prices", "price-points", "availability"} {
+		if !usageListsSubcommand(pricingUsage, expected) {
+			t.Fatalf("expected subscriptions pricing help to list %s, got %q", expected, pricingUsage)
+		}
+	}
+
+	offersCmd := findSubcommand(root, "subscriptions", "offers")
+	if offersCmd == nil {
+		t.Fatal("expected subscriptions offers command")
+	}
+	offersUsage := offersCmd.UsageFunc(offersCmd)
+	for _, expected := range []string{"introductory", "promotional", "offer-codes", "win-back"} {
+		if !usageListsSubcommand(offersUsage, expected) {
+			t.Fatalf("expected subscriptions offers help to list %s, got %q", expected, offersUsage)
+		}
+	}
+
+	offerCodesCmd := findSubcommand(root, "subscriptions", "offers", "offer-codes")
 	if offerCodesCmd == nil {
-		t.Fatal("expected subscriptions offer-codes command")
+		t.Fatal("expected subscriptions offers offer-codes command")
 	}
 	offerCodesUsage := offerCodesCmd.UsageFunc(offerCodesCmd)
 	if !strings.Contains(offerCodesUsage, "  generate") {
-		t.Fatalf("expected subscriptions offer-codes help to list generate, got %q", offerCodesUsage)
+		t.Fatalf("expected subscriptions offers offer-codes help to list generate, got %q", offerCodesUsage)
 	}
 	if !strings.Contains(offerCodesUsage, "  values") {
-		t.Fatalf("expected subscriptions offer-codes help to list values, got %q", offerCodesUsage)
+		t.Fatalf("expected subscriptions offers offer-codes help to list values, got %q", offerCodesUsage)
+	}
+
+	reviewCmd := findSubcommand(root, "subscriptions", "review")
+	if reviewCmd == nil {
+		t.Fatal("expected subscriptions review command")
+	}
+	reviewUsage := reviewCmd.UsageFunc(reviewCmd)
+	for _, expected := range []string{"screenshots", "app-store-screenshot", "submit", "submit-group"} {
+		if !usageListsSubcommand(reviewUsage, expected) {
+			t.Fatalf("expected subscriptions review help to list %s, got %q", expected, reviewUsage)
+		}
+	}
+
+	promotedPurchasesCreateCmd := findSubcommand(root, "subscriptions", "promoted-purchases", "create")
+	if promotedPurchasesCreateCmd == nil {
+		t.Fatal("expected subscriptions promoted-purchases create command")
+	}
+	promotedPurchasesCreateUsage := promotedPurchasesCreateCmd.UsageFunc(promotedPurchasesCreateCmd)
+	if strings.Contains(promotedPurchasesCreateUsage, "--product-type") {
+		t.Fatalf("expected canonical promoted-purchases create help to hide --product-type, got %q", promotedPurchasesCreateUsage)
 	}
 
 	iapCmd := findSubcommand(root, "iap")
@@ -52,70 +114,13 @@ func TestSubscriptionsHelpShowsCanonicalCommerceSubcommands(t *testing.T) {
 	}
 }
 
-func TestLegacyCommerceRootCommandsAreDeprecatedInHelp(t *testing.T) {
+func TestRemovedLegacyCommerceRootCommandsAreNotRegistered(t *testing.T) {
 	root := RootCommand("1.2.3")
 
-	tests := []struct {
-		name      string
-		command   string
-		wantUsage string
-	}{
-		{
-			name:      "offer-codes",
-			command:   "offer-codes",
-			wantUsage: `asc subscriptions offer-codes`,
-		},
-		{
-			name:      "win-back-offers",
-			command:   "win-back-offers",
-			wantUsage: `asc subscriptions win-back-offers`,
-		},
-		{
-			name:      "promoted-purchases",
-			command:   "promoted-purchases",
-			wantUsage: `asc subscriptions promoted-purchases`,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			cmd := findSubcommand(root, test.command)
-			if cmd == nil {
-				t.Fatalf("expected %s command", test.command)
-			}
-			usage := cmd.UsageFunc(cmd)
-			if !strings.Contains(usage, "DEPRECATED:") {
-				t.Fatalf("expected deprecated help text, got %q", usage)
-			}
-			if !strings.Contains(usage, test.wantUsage) {
-				t.Fatalf("expected canonical replacement %q in usage, got %q", test.wantUsage, usage)
-			}
-		})
-	}
-}
-
-func TestLegacyOfferCodesExecutionWarnsToStderr(t *testing.T) {
-	root := RootCommand("1.2.3")
-	root.FlagSet.SetOutput(io.Discard)
-
-	stdout, stderr := captureOutput(t, func() {
-		if err := root.Parse([]string{"offer-codes", "values"}); err != nil {
-			t.Fatalf("parse error: %v", err)
+	for _, name := range []string{"offer-codes", "win-back-offers", "promoted-purchases"} {
+		if cmd := findSubcommand(root, name); cmd != nil {
+			t.Fatalf("expected removed root command %s to be absent", name)
 		}
-		err := root.Run(context.Background())
-		if !errors.Is(err, flag.ErrHelp) {
-			t.Fatalf("expected ErrHelp, got %v", err)
-		}
-	})
-
-	if stdout != "" {
-		t.Fatalf("expected empty stdout, got %q", stdout)
-	}
-	if !strings.Contains(stderr, `Warning: "asc offer-codes values" is deprecated. Use "asc subscriptions offer-codes values" instead.`) {
-		t.Fatalf("expected deprecation warning in stderr, got %q", stderr)
-	}
-	if !strings.Contains(stderr, "--id is required") {
-		t.Fatalf("expected original validation error in stderr, got %q", stderr)
 	}
 }
 
@@ -126,9 +131,9 @@ func TestCanonicalWrapperErrorsUseCanonicalPaths(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name:    "subscriptions win-back-offers next validation",
-			args:    []string{"subscriptions", "win-back-offers", "list", "--next", "http://api.appstoreconnect.apple.com/v1/subscriptions/sub-1/winBackOffers?cursor=AQ"},
-			wantErr: "subscriptions win-back-offers list: --next must be an App Store Connect URL",
+			name:    "subscriptions offers win-back next validation",
+			args:    []string{"subscriptions", "offers", "win-back", "list", "--next", "http://api.appstoreconnect.apple.com/v1/subscriptions/sub-1/winBackOffers?cursor=AQ"},
+			wantErr: "subscriptions offers win-back list: --next must be an App Store Connect URL",
 		},
 		{
 			name:    "subscriptions promoted-purchases next validation",
@@ -141,9 +146,14 @@ func TestCanonicalWrapperErrorsUseCanonicalPaths(t *testing.T) {
 			wantErr: "iap promoted-purchases list: --next must be an App Store Connect URL",
 		},
 		{
-			name:    "subscriptions offer-codes values auth error",
-			args:    []string{"subscriptions", "offer-codes", "values", "--id", "batch-1"},
-			wantErr: "subscriptions offer-codes values:",
+			name:    "subscriptions offers offer-codes values auth error",
+			args:    []string{"subscriptions", "offers", "offer-codes", "values", "--batch-id", "batch-1"},
+			wantErr: "subscriptions offers offer-codes values:",
+		},
+		{
+			name:    "subscriptions pricing prices next validation",
+			args:    []string{"subscriptions", "pricing", "prices", "list", "--next", "http://api.appstoreconnect.apple.com/v1/subscriptions/sub-1/prices?cursor=AQ"},
+			wantErr: "subscriptions pricing prices list: --next must be an App Store Connect URL",
 		},
 	}
 

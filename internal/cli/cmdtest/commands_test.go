@@ -298,14 +298,14 @@ func TestBuildsExpireRequiresBuildID(t *testing.T) {
 	}
 }
 
-func TestOfferCodesListRequiresOfferCode(t *testing.T) {
+func TestSubscriptionsOfferCodesOneTimeCodesListRequiresOfferCodeID(t *testing.T) {
 	t.Setenv("ASC_APP_ID", "")
 	t.Setenv("ASC_CONFIG_PATH", filepath.Join(t.TempDir(), "config.json"))
 
 	root := RootCommand("1.2.3")
 
 	stdout, stderr := captureOutput(t, func() {
-		if err := root.Parse([]string{"offer-codes", "list"}); err != nil {
+		if err := root.Parse([]string{"subscriptions", "offers", "offer-codes", "one-time-codes", "list"}); err != nil {
 			t.Fatalf("parse error: %v", err)
 		}
 		err := root.Run(context.Background())
@@ -317,12 +317,12 @@ func TestOfferCodesListRequiresOfferCode(t *testing.T) {
 	if stdout != "" {
 		t.Fatalf("expected empty stdout, got %q", stdout)
 	}
-	if !strings.Contains(stderr, "Error: --offer-code is required") {
-		t.Fatalf("expected missing offer code error, got %q", stderr)
+	if !strings.Contains(stderr, "Error: --offer-code-id is required") {
+		t.Fatalf("expected missing offer code id error, got %q", stderr)
 	}
 }
 
-func TestOfferCodesGenerateValidationErrors(t *testing.T) {
+func TestCanonicalOfferCodesGenerateValidationErrors(t *testing.T) {
 	t.Setenv("ASC_APP_ID", "")
 	t.Setenv("ASC_CONFIG_PATH", filepath.Join(t.TempDir(), "config.json"))
 
@@ -333,17 +333,17 @@ func TestOfferCodesGenerateValidationErrors(t *testing.T) {
 	}{
 		{
 			name:    "missing offer-code",
-			args:    []string{"offer-codes", "generate", "--quantity", "1", "--expiration-date", "2026-02-01"},
-			wantErr: "Error: --offer-code is required",
+			args:    []string{"subscriptions", "offers", "offer-codes", "generate", "--quantity", "1", "--expiration-date", "2026-02-01"},
+			wantErr: "Error: --offer-code-id is required",
 		},
 		{
 			name:    "missing expiration date",
-			args:    []string{"offer-codes", "generate", "--offer-code", "OFFER_CODE_ID", "--quantity", "1"},
+			args:    []string{"subscriptions", "offers", "offer-codes", "generate", "--offer-code-id", "OFFER_CODE_ID", "--quantity", "1"},
 			wantErr: "Error: --expiration-date is required",
 		},
 		{
 			name:    "missing quantity",
-			args:    []string{"offer-codes", "generate", "--offer-code", "OFFER_CODE_ID", "--expiration-date", "2026-02-01"},
+			args:    []string{"subscriptions", "offers", "offer-codes", "generate", "--offer-code-id", "OFFER_CODE_ID", "--expiration-date", "2026-02-01"},
 			wantErr: "Error: --quantity is required",
 		},
 	}
@@ -1195,11 +1195,6 @@ func TestIAPValidationErrors(t *testing.T) {
 			wantErr: "--offer-code-id is required",
 		},
 		{
-			name:    "iap promoted-purchase get missing id",
-			args:    []string{"iap", "promoted-purchase", "get"},
-			wantErr: "--id is required",
-		},
-		{
 			name:    "iap promoted-purchases list missing app",
 			args:    []string{"iap", "promoted-purchases", "list"},
 			wantErr: "--app is required",
@@ -1474,26 +1469,26 @@ func TestSubscriptionsValidationErrors(t *testing.T) {
 		{
 			name:    "subscriptions list missing group",
 			args:    []string{"subscriptions", "list"},
-			wantErr: "--group is required",
+			wantErr: "--group-id is required",
 		},
 		{
 			name:    "subscriptions create missing group",
-			args:    []string{"subscriptions", "create", "--ref-name", "Monthly", "--product-id", "com.example.sub"},
-			wantErr: "--group is required",
+			args:    []string{"subscriptions", "create", "--reference-name", "Monthly", "--product-id", "com.example.sub"},
+			wantErr: "--group-id is required",
 		},
 		{
 			name:    "subscriptions create missing ref-name",
-			args:    []string{"subscriptions", "create", "--group", "GROUP_ID", "--product-id", "com.example.sub"},
-			wantErr: "--ref-name is required",
+			args:    []string{"subscriptions", "create", "--group-id", "GROUP_ID", "--product-id", "com.example.sub"},
+			wantErr: "--reference-name is required",
 		},
 		{
 			name:    "subscriptions create missing product-id",
-			args:    []string{"subscriptions", "create", "--group", "GROUP_ID", "--ref-name", "Monthly"},
+			args:    []string{"subscriptions", "create", "--group-id", "GROUP_ID", "--reference-name", "Monthly"},
 			wantErr: "--product-id is required",
 		},
 		{
 			name:    "subscriptions create invalid subscription period",
-			args:    []string{"subscriptions", "create", "--group", "GROUP_ID", "--ref-name", "Monthly", "--product-id", "com.example.sub", "--subscription-period", "BAD"},
+			args:    []string{"subscriptions", "create", "--group-id", "GROUP_ID", "--reference-name", "Monthly", "--product-id", "com.example.sub", "--subscription-period", "BAD"},
 			wantErr: "--subscription-period must be one of",
 		},
 		{
@@ -1522,69 +1517,64 @@ func TestSubscriptionsValidationErrors(t *testing.T) {
 			wantErr: "--confirm is required",
 		},
 		{
-			name:    "subscriptions prices add missing id",
-			args:    []string{"subscriptions", "prices", "add", "--price-point", "PRICE_POINT_ID"},
-			wantErr: "--id is required",
+			name:    "subscriptions pricing prices set missing id",
+			args:    []string{"subscriptions", "pricing", "prices", "set", "--price-point", "PRICE_POINT_ID"},
+			wantErr: "--subscription-id is required",
 		},
 		{
-			name:    "subscriptions prices add missing price-point",
-			args:    []string{"subscriptions", "prices", "add", "--id", "SUB_ID"},
+			name:    "subscriptions pricing prices set missing price-point",
+			args:    []string{"subscriptions", "pricing", "prices", "set", "--subscription-id", "SUB_ID"},
 			wantErr: "one of --price-point, --tier, or --price is required",
 		},
 		{
-			name:    "subscriptions prices import missing id",
-			args:    []string{"subscriptions", "prices", "import", "--input", "./prices.csv"},
-			wantErr: "--id is required",
+			name:    "subscriptions pricing prices import missing id",
+			args:    []string{"subscriptions", "pricing", "prices", "import", "--input", "./prices.csv"},
+			wantErr: "--subscription-id is required",
 		},
 		{
-			name:    "subscriptions prices import missing input",
-			args:    []string{"subscriptions", "prices", "import", "--id", "SUB_ID"},
+			name:    "subscriptions pricing prices import missing input",
+			args:    []string{"subscriptions", "pricing", "prices", "import", "--subscription-id", "SUB_ID"},
 			wantErr: "--input is required",
 		},
 		{
-			name:    "subscriptions prices list missing id",
-			args:    []string{"subscriptions", "prices", "list"},
-			wantErr: "--id is required",
+			name:    "subscriptions pricing prices list missing id",
+			args:    []string{"subscriptions", "pricing", "prices", "list"},
+			wantErr: "--subscription-id is required",
 		},
 		{
-			name:    "subscriptions prices delete missing price-id",
-			args:    []string{"subscriptions", "prices", "delete", "--confirm"},
+			name:    "subscriptions pricing prices delete missing price-id",
+			args:    []string{"subscriptions", "pricing", "prices", "delete", "--confirm"},
 			wantErr: "--price-id is required",
 		},
 		{
-			name:    "subscriptions prices delete missing confirm",
-			args:    []string{"subscriptions", "prices", "delete", "--price-id", "PRICE_ID"},
+			name:    "subscriptions pricing prices delete missing confirm",
+			args:    []string{"subscriptions", "pricing", "prices", "delete", "--price-id", "PRICE_ID"},
 			wantErr: "--confirm is required",
 		},
 		{
-			name:    "subscriptions availability set missing id",
-			args:    []string{"subscriptions", "availability", "set", "--territory", "USA"},
-			wantErr: "--id is required",
+			name:    "subscriptions pricing availability set missing id",
+			args:    []string{"subscriptions", "pricing", "availability", "set", "--territories", "USA"},
+			wantErr: "--subscription-id is required",
 		},
 		{
-			name:    "subscriptions availability set missing territory",
-			args:    []string{"subscriptions", "availability", "set", "--id", "SUB_ID"},
-			wantErr: "--territory is required",
+			name:    "subscriptions pricing availability set missing territory",
+			args:    []string{"subscriptions", "pricing", "availability", "set", "--subscription-id", "SUB_ID"},
+			wantErr: "--territories is required",
 		},
 		{
-			name:    "subscriptions availability get missing id",
-			args:    []string{"subscriptions", "availability", "get"},
-			wantErr: "--id or --subscription-id is required",
+			name:    "subscriptions pricing availability get missing id",
+			args:    []string{"subscriptions", "pricing", "availability", "get"},
+			wantErr: "--availability-id or --subscription-id is required",
 		},
 		{
-			name:    "subscriptions availability available-territories missing id",
-			args:    []string{"subscriptions", "availability", "available-territories"},
-			wantErr: "--id is required",
+			name:    "subscriptions pricing availability available-territories missing id",
+			args:    []string{"subscriptions", "pricing", "availability", "available-territories"},
+			wantErr: "--availability-id is required",
 		},
 		{
-			name:    "subscriptions app-store-review-screenshot get missing id",
-			args:    []string{"subscriptions", "app-store-review-screenshot", "get"},
-			wantErr: "--id is required",
-		},
-		{
-			name:    "subscriptions promoted-purchase get missing id",
-			args:    []string{"subscriptions", "promoted-purchase", "get"},
-			wantErr: "--id is required",
+			name:    "subscriptions review app-store-screenshot get missing id",
+			args:    []string{"subscriptions", "review", "app-store-screenshot", "get"},
+			wantErr: "--subscription-id is required",
 		},
 		{
 			name:    "subscriptions promoted-purchases list missing app",
@@ -1663,138 +1653,168 @@ func TestSubscriptionsValidationErrors(t *testing.T) {
 		},
 		{
 			name:    "subscriptions introductory-offers list missing subscription-id",
-			args:    []string{"subscriptions", "introductory-offers", "list"},
+			args:    []string{"subscriptions", "offers", "introductory", "list"},
 			wantErr: "--subscription-id is required",
 		},
 		{
 			name:    "subscriptions introductory-offers create missing offer-duration",
-			args:    []string{"subscriptions", "introductory-offers", "create", "--subscription-id", "SUB_ID", "--offer-mode", "FREE_TRIAL", "--number-of-periods", "1"},
+			args:    []string{"subscriptions", "offers", "introductory", "create", "--subscription-id", "SUB_ID", "--offer-mode", "FREE_TRIAL", "--number-of-periods", "1"},
 			wantErr: "--offer-duration is required",
 		},
 		{
 			name:    "subscriptions introductory-offers update missing update flags",
-			args:    []string{"subscriptions", "introductory-offers", "update", "--id", "OFFER_ID"},
+			args:    []string{"subscriptions", "offers", "introductory", "update", "--id", "OFFER_ID"},
 			wantErr: "at least one update flag is required",
 		},
 		{
 			name:    "subscriptions introductory-offers delete missing confirm",
-			args:    []string{"subscriptions", "introductory-offers", "delete", "--id", "OFFER_ID"},
+			args:    []string{"subscriptions", "offers", "introductory", "delete", "--id", "OFFER_ID"},
 			wantErr: "--confirm is required",
 		},
 		{
 			name:    "subscriptions promotional-offers list missing subscription-id",
-			args:    []string{"subscriptions", "promotional-offers", "list"},
+			args:    []string{"subscriptions", "offers", "promotional", "list"},
 			wantErr: "--subscription-id is required",
 		},
 		{
 			name:    "subscriptions promotional-offers create missing prices",
-			args:    []string{"subscriptions", "promotional-offers", "create", "--subscription-id", "SUB_ID", "--offer-code", "SPRING", "--name", "Spring", "--offer-duration", "ONE_MONTH", "--offer-mode", "FREE_TRIAL", "--number-of-periods", "1"},
+			args:    []string{"subscriptions", "offers", "promotional", "create", "--subscription-id", "SUB_ID", "--offer-code", "SPRING", "--name", "Spring", "--offer-duration", "ONE_MONTH", "--offer-mode", "FREE_TRIAL", "--number-of-periods", "1"},
 			wantErr: "--prices is required",
 		},
 		{
 			name:    "subscriptions promotional-offers update missing prices",
-			args:    []string{"subscriptions", "promotional-offers", "update", "--id", "OFFER_ID"},
+			args:    []string{"subscriptions", "offers", "promotional", "update", "--id", "OFFER_ID"},
 			wantErr: "--prices is required",
 		},
 		{
 			name:    "subscriptions promotional-offers delete missing confirm",
-			args:    []string{"subscriptions", "promotional-offers", "delete", "--id", "OFFER_ID"},
+			args:    []string{"subscriptions", "offers", "promotional", "delete", "--id", "OFFER_ID"},
 			wantErr: "--confirm is required",
 		},
 		{
 			name:    "subscriptions promotional-offers prices missing id",
-			args:    []string{"subscriptions", "promotional-offers", "prices"},
+			args:    []string{"subscriptions", "offers", "promotional", "prices"},
 			wantErr: "--id is required",
 		},
 		{
 			name:    "subscriptions offer-codes list missing subscription-id",
-			args:    []string{"subscriptions", "offer-codes", "list"},
+			args:    []string{"subscriptions", "offers", "offer-codes", "list"},
 			wantErr: "--subscription-id is required",
 		},
 		{
 			name:    "subscriptions offer-codes create missing name",
-			args:    []string{"subscriptions", "offer-codes", "create", "--subscription-id", "SUB_ID", "--offer-eligibility", "STACK_WITH_INTRO_OFFERS", "--customer-eligibilities", "NEW", "--offer-duration", "ONE_MONTH", "--offer-mode", "FREE_TRIAL", "--number-of-periods", "1", "--prices", "PRICE_ID"},
+			args:    []string{"subscriptions", "offers", "offer-codes", "create", "--subscription-id", "SUB_ID", "--offer-eligibility", "STACK_WITH_INTRO_OFFERS", "--customer-eligibilities", "NEW", "--offer-duration", "ONE_MONTH", "--offer-mode", "FREE_TRIAL", "--number-of-periods", "1", "--prices", "PRICE_ID"},
 			wantErr: "--name is required",
 		},
 		{
 			name:    "subscriptions offer-codes create missing prices",
-			args:    []string{"subscriptions", "offer-codes", "create", "--subscription-id", "SUB_ID", "--name", "Spring", "--offer-eligibility", "STACK_WITH_INTRO_OFFERS", "--customer-eligibilities", "NEW", "--offer-duration", "ONE_MONTH", "--offer-mode", "FREE_TRIAL", "--number-of-periods", "1"},
+			args:    []string{"subscriptions", "offers", "offer-codes", "create", "--subscription-id", "SUB_ID", "--name", "Spring", "--offer-eligibility", "STACK_WITH_INTRO_OFFERS", "--customer-eligibilities", "NEW", "--offer-duration", "ONE_MONTH", "--offer-mode", "FREE_TRIAL", "--number-of-periods", "1"},
 			wantErr: "--prices is required",
 		},
 		{
 			name:    "subscriptions offer-codes update missing active",
-			args:    []string{"subscriptions", "offer-codes", "update", "--id", "OFFER_ID"},
+			args:    []string{"subscriptions", "offers", "offer-codes", "update", "--offer-code-id", "OFFER_ID"},
 			wantErr: "--active is required",
 		},
 		{
 			name:    "subscriptions offer-codes custom-codes missing offer-code-id",
-			args:    []string{"subscriptions", "offer-codes", "custom-codes"},
+			args:    []string{"subscriptions", "offers", "offer-codes", "custom-codes", "list"},
 			wantErr: "--offer-code-id is required",
 		},
 		{
 			name:    "subscriptions offer-codes one-time-codes missing offer-code-id",
-			args:    []string{"subscriptions", "offer-codes", "one-time-codes", "list"},
+			args:    []string{"subscriptions", "offers", "offer-codes", "one-time-codes", "list"},
 			wantErr: "--offer-code-id is required",
 		},
 		{
 			name:    "subscriptions offer-codes one-time-codes get missing id",
-			args:    []string{"subscriptions", "offer-codes", "one-time-codes", "get"},
-			wantErr: "--id is required",
+			args:    []string{"subscriptions", "offers", "offer-codes", "one-time-codes", "get"},
+			wantErr: "--batch-id is required",
 		},
 		{
 			name:    "subscriptions offer-codes generate missing offer-code",
-			args:    []string{"subscriptions", "offer-codes", "generate"},
-			wantErr: "--offer-code is required",
+			args:    []string{"subscriptions", "offers", "offer-codes", "generate"},
+			wantErr: "--offer-code-id is required",
 		},
 		{
 			name:    "subscriptions offer-codes values missing id",
-			args:    []string{"subscriptions", "offer-codes", "values"},
-			wantErr: "--id is required",
+			args:    []string{"subscriptions", "offers", "offer-codes", "values"},
+			wantErr: "--batch-id is required",
 		},
 		{
 			name:    "subscriptions offer-codes prices missing offer-code-id",
-			args:    []string{"subscriptions", "offer-codes", "prices"},
+			args:    []string{"subscriptions", "offers", "offer-codes", "prices"},
 			wantErr: "--offer-code-id is required",
 		},
 		{
 			name:    "subscriptions win-back-offers list missing subscription",
-			args:    []string{"subscriptions", "win-back-offers", "list"},
-			wantErr: "--subscription is required",
+			args:    []string{"subscriptions", "offers", "win-back", "list"},
+			wantErr: "--subscription-id is required",
 		},
 		{
 			name:    "subscriptions price-points list missing subscription-id",
-			args:    []string{"subscriptions", "price-points", "list"},
+			args:    []string{"subscriptions", "pricing", "price-points", "list"},
 			wantErr: "--subscription-id is required",
 		},
 		{
 			name:    "subscriptions price-points equalizations missing id",
-			args:    []string{"subscriptions", "price-points", "equalizations"},
-			wantErr: "--id is required",
+			args:    []string{"subscriptions", "pricing", "price-points", "equalizations"},
+			wantErr: "--price-point-id is required",
 		},
 		{
 			name:    "subscriptions submit missing subscription-id",
-			args:    []string{"subscriptions", "submit", "--confirm"},
+			args:    []string{"subscriptions", "review", "submit", "--confirm"},
 			wantErr: "--subscription-id is required",
 		},
 		{
 			name:    "subscriptions submit missing confirm",
-			args:    []string{"subscriptions", "submit", "--subscription-id", "SUB_ID"},
+			args:    []string{"subscriptions", "review", "submit", "--subscription-id", "SUB_ID"},
 			wantErr: "--confirm is required",
 		},
 		{
 			name:    "subscriptions review-screenshots create missing file",
-			args:    []string{"subscriptions", "review-screenshots", "create", "--subscription-id", "SUB_ID"},
+			args:    []string{"subscriptions", "review", "screenshots", "create", "--subscription-id", "SUB_ID"},
 			wantErr: "--file is required",
 		},
 		{
 			name:    "subscriptions review-screenshots update missing update flags",
-			args:    []string{"subscriptions", "review-screenshots", "update", "--id", "SHOT_ID"},
+			args:    []string{"subscriptions", "review", "screenshots", "update", "--screenshot-id", "SHOT_ID"},
 			wantErr: "at least one update flag is required",
 		},
 		{
 			name:    "subscriptions review-screenshots delete missing confirm",
-			args:    []string{"subscriptions", "review-screenshots", "delete", "--id", "SHOT_ID"},
+			args:    []string{"subscriptions", "review", "screenshots", "delete", "--screenshot-id", "SHOT_ID"},
 			wantErr: "--confirm is required",
+		},
+		{
+			name:    "subscriptions pricing summary missing app and subscription-id",
+			args:    []string{"subscriptions", "pricing", "summary"},
+			wantErr: "--app or --subscription-id is required",
+		},
+		{
+			name:    "subscriptions pricing prices set missing subscription-id",
+			args:    []string{"subscriptions", "pricing", "prices", "set", "--price-point", "PRICE_POINT_ID"},
+			wantErr: "--subscription-id is required",
+		},
+		{
+			name:    "subscriptions offers introductory list missing subscription-id",
+			args:    []string{"subscriptions", "offers", "introductory", "list"},
+			wantErr: "--subscription-id is required",
+		},
+		{
+			name:    "subscriptions offers win-back list missing subscription-id",
+			args:    []string{"subscriptions", "offers", "win-back", "list"},
+			wantErr: "--subscription-id is required",
+		},
+		{
+			name:    "subscriptions review screenshots get missing screenshot-id",
+			args:    []string{"subscriptions", "review", "screenshots", "get"},
+			wantErr: "--screenshot-id is required",
+		},
+		{
+			name:    "subscriptions review submit-group missing group-id",
+			args:    []string{"subscriptions", "review", "submit-group", "--confirm"},
+			wantErr: "--group-id is required",
 		},
 		{
 			name:    "subscriptions groups localizations list missing group-id",
@@ -1814,16 +1834,6 @@ func TestSubscriptionsValidationErrors(t *testing.T) {
 		{
 			name:    "subscriptions groups localizations delete missing confirm",
 			args:    []string{"subscriptions", "groups", "localizations", "delete", "--id", "LOC_ID"},
-			wantErr: "--confirm is required",
-		},
-		{
-			name:    "subscriptions groups submit missing group-id",
-			args:    []string{"subscriptions", "groups", "submit", "--confirm"},
-			wantErr: "--group-id is required",
-		},
-		{
-			name:    "subscriptions groups submit missing confirm",
-			args:    []string{"subscriptions", "groups", "submit", "--group-id", "GROUP_ID"},
 			wantErr: "--confirm is required",
 		},
 		{

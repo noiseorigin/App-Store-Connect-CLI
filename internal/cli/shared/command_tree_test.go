@@ -3,22 +3,25 @@ package shared
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"testing"
 
 	"github.com/peterbourgon/ff/v3/ffcli"
 )
 
-func TestVisibleHelpSubcommandsFiltersHiddenCommands(t *testing.T) {
-	visible := &ffcli.Command{Name: "visible"}
-	hidden := HideCommandFromParentHelp(&ffcli.Command{Name: "hidden"})
+func TestVisibleHelpFlagsFiltersHiddenFlags(t *testing.T) {
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	_ = fs.String("visible", "", "visible flag")
+	_ = fs.String("hidden", "", "hidden flag")
+	HideFlagFromHelp(fs.Lookup("hidden"))
 
-	filtered := VisibleHelpSubcommands([]*ffcli.Command{visible, hidden, nil})
-	if len(filtered) != 1 {
-		t.Fatalf("expected 1 visible subcommand, got %d", len(filtered))
+	visible := VisibleHelpFlags(fs)
+	if len(visible) != 1 {
+		t.Fatalf("expected 1 visible flag, got %d", len(visible))
 	}
-	if filtered[0].Name != "visible" {
-		t.Fatalf("expected visible subcommand to remain, got %q", filtered[0].Name)
+	if visible[0].Name != "visible" {
+		t.Fatalf("expected visible flag to remain, got %q", visible[0].Name)
 	}
 }
 

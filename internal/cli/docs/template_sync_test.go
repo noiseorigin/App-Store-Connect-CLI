@@ -18,9 +18,8 @@ func TestASCTemplateIncludesAllRootSubcommands(t *testing.T) {
 	templateCommands := parseBacktickBullets(section)
 
 	root := cmd.RootCommand("test")
-	visible := cmd.VisibleRootSubcommands(root.Subcommands)
-	rootCommands := make([]string, 0, len(visible))
-	for _, sub := range visible {
+	rootCommands := make([]string, 0, len(root.Subcommands))
+	for _, sub := range root.Subcommands {
 		rootCommands = append(rootCommands, sub.Name)
 	}
 
