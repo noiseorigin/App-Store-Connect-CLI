@@ -2,7 +2,6 @@ package subscriptions
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -247,13 +246,6 @@ type equalizeResult struct {
 	Failures       []equalizeFailure `json:"failures,omitempty"`
 }
 
-// pricePointIDPayload is the JSON structure encoded in base64 price point IDs.
-type pricePointIDPayload struct {
-	S string `json:"s"` // subscription ID
-	T string `json:"t"` // territory
-	P string `json:"p"` // price tier
-}
-
 func findPricePoint(ctx context.Context, client *asc.Client, subID, territory, targetPrice string) (string, error) {
 	// List price points filtered by the base territory, paginating to find the matching price
 	var pricePointID string
@@ -313,8 +305,12 @@ func findPricePoint(ctx context.Context, client *asc.Client, subID, territory, t
 }
 
 func fetchEqualizations(ctx context.Context, client *asc.Client, pricePointID, baseTerritory string) ([]equalization, error) {
+	// Use include=territory so the API populates each price point's
+	// relationships with the territory reference, avoiding reliance on
+	// opaque price point ID structure.
 	firstCtx, firstCancel := shared.ContextWithTimeout(ctx)
 	resp, err := client.GetSubscriptionPricePointEqualizations(firstCtx, pricePointID,
+		asc.WithSubscriptionPricePointsInclude([]string{"territory"}),
 		asc.WithSubscriptionPricePointsLimit(200),
 	)
 	firstCancel()
@@ -399,10 +395,7 @@ func equalizationTerritoryID(pricePoint asc.Resource[asc.SubscriptionPricePointA
 	if territory := territoryFromPricePointRelationships(pricePoint.Relationships); territory != "" {
 		return territory, nil
 	}
-	if territory := decodePricePointTerritory(pricePoint.ID); territory != "" {
-		return territory, nil
-	}
-	return "", fmt.Errorf("failed to resolve territory for equalized price point %q", pricePoint.ID)
+	return "", fmt.Errorf("failed to resolve territory for equalized price point %q; ensure include=territory is set", pricePoint.ID)
 }
 
 func territoryFromPricePointRelationships(raw json.RawMessage) string {
@@ -420,25 +413,6 @@ func territoryFromPricePointRelationships(raw json.RawMessage) string {
 		return ""
 	}
 	return strings.ToUpper(strings.TrimSpace(relationships.Territory.Data.ID))
-}
-
-func decodePricePointTerritory(id string) string {
-	// Price point IDs are base64-encoded JSON: {"s":"...","t":"USA","p":"..."}
-	// Try with and without padding
-	for _, candidate := range []string{id, id + "=", id + "=="} {
-		decoded, err := base64.StdEncoding.DecodeString(candidate)
-		if err != nil {
-			continue
-		}
-		var payload pricePointIDPayload
-		if err := json.Unmarshal(decoded, &payload); err != nil {
-			continue
-		}
-		if payload.T != "" {
-			return payload.T
-		}
-	}
-	return ""
 }
 
 func printEqualizeResult(result *equalizeResult, format string, pretty bool) error {

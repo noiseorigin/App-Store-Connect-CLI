@@ -73,6 +73,7 @@ type subscriptionOfferCodePricesQuery struct {
 type subscriptionPricePointsQuery struct {
 	listQuery
 	territory string
+	include   []string
 }
 
 type subscriptionPricesQuery struct {
@@ -258,6 +259,13 @@ func WithSubscriptionPricePointsTerritory(territory string) SubscriptionPricePoi
 	}
 }
 
+// WithSubscriptionPricePointsInclude sets the relationships to include (e.g., "territory").
+func WithSubscriptionPricePointsInclude(include []string) SubscriptionPricePointsOption {
+	return func(q *subscriptionPricePointsQuery) {
+		q.include = normalizeList(include)
+	}
+}
+
 // WithSubscriptionPricesLimit sets the max number of prices to return.
 func WithSubscriptionPricesLimit(limit int) SubscriptionPricesOption {
 	return func(q *subscriptionPricesQuery) {
@@ -377,6 +385,7 @@ func buildSubscriptionPricePointsQuery(query *subscriptionPricePointsQuery) stri
 	if strings.TrimSpace(query.territory) != "" {
 		values.Set("filter[territory]", strings.TrimSpace(query.territory))
 	}
+	addCSV(values, "include", query.include)
 	addLimit(values, query.limit)
 	return values.Encode()
 }
