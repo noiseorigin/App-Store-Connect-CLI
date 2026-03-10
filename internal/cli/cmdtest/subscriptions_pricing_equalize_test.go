@@ -2,7 +2,6 @@ package cmdtest
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -58,8 +57,8 @@ func TestSubscriptionsPricingEqualizeValidationErrors(t *testing.T) {
 func TestSubscriptionsPricingEqualizeDryRunIncludesBaseTerritory(t *testing.T) {
 	setupAuth(t)
 
-	basePricePointID := encodedPricePointID(t, "sub-1", "USA", "10036")
-	canadaPricePointID := encodedPricePointID(t, "sub-1", "CAN", "10049")
+	basePricePointID := "pp-base-usa"
+	canadaPricePointID := "eq-can-opaque"
 
 	originalTransport := http.DefaultTransport
 	t.Cleanup(func() {
@@ -85,10 +84,16 @@ func TestSubscriptionsPricingEqualizeDryRunIncludesBaseTerritory(t *testing.T) {
 
 		case req.URL.Path == "/v1/subscriptionPricePoints/"+basePricePointID+"/equalizations" && req.Method == http.MethodGet:
 			query := req.URL.Query()
+			if query.Get("fields[subscriptionPricePoints]") != "customerPrice,territory" {
+				t.Fatalf("expected fields[subscriptionPricePoints]=customerPrice,territory, got %q", query.Get("fields[subscriptionPricePoints]"))
+			}
+			if query.Get("include") != "territory" {
+				t.Fatalf("expected include=territory, got %q", query.Get("include"))
+			}
 			if query.Get("limit") != "200" {
 				t.Fatalf("expected limit=200, got %q", query.Get("limit"))
 			}
-			body := `{"data":[{"type":"subscriptionPricePoints","id":"` + canadaPricePointID + `","attributes":{"customerPrice":"4.99"}}],"links":{}}`
+			body := `{"data":[{"type":"subscriptionPricePoints","id":"` + canadaPricePointID + `","attributes":{"customerPrice":"4.99"},"relationships":{"territory":{"data":{"type":"territories","id":"CAN"}}}}],"links":{}}`
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Body:       io.NopCloser(strings.NewReader(body)),
@@ -139,11 +144,4 @@ func TestSubscriptionsPricingEqualizeDryRunIncludesBaseTerritory(t *testing.T) {
 	if result.Territories[1].Territory != "CAN" {
 		t.Fatalf("expected CAN equalization second, got %+v", result.Territories)
 	}
-}
-
-func encodedPricePointID(t *testing.T, subscriptionID, territory, priceTier string) string {
-	t.Helper()
-
-	payload := `{"s":"` + subscriptionID + `","t":"` + territory + `","p":"` + priceTier + `"}`
-	return base64.RawStdEncoding.EncodeToString([]byte(payload))
 }

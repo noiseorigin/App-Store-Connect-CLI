@@ -2,7 +2,6 @@ package subscriptions
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -197,13 +196,6 @@ type equalizeResult struct {
 	Failures       []equalizeFailure `json:"failures,omitempty"`
 }
 
-// pricePointIDPayload is the JSON structure encoded in base64 price point IDs.
-type pricePointIDPayload struct {
-	S string `json:"s"` // subscription ID
-	T string `json:"t"` // territory
-	P string `json:"p"` // price tier
-}
-
 func findPricePoint(ctx context.Context, client *asc.Client, subID, territory, targetPrice string) (string, error) {
 	// Parse target price as a float for numeric comparison (e.g., "3.5" matches "3.50").
 	targetFloat, targetErr := strconv.ParseFloat(targetPrice, 64)
@@ -267,6 +259,8 @@ func findPricePoint(ctx context.Context, client *asc.Client, subID, territory, t
 func fetchEqualizations(ctx context.Context, client *asc.Client, pricePointID, baseTerritory string) ([]equalization, error) {
 	firstCtx, firstCancel := shared.ContextWithTimeout(ctx)
 	resp, err := client.GetSubscriptionPricePointEqualizations(firstCtx, pricePointID,
+		asc.WithSubscriptionPricePointsInclude([]string{"territory"}),
+		asc.WithSubscriptionPricePointsFields([]string{"customerPrice", "territory"}),
 		asc.WithSubscriptionPricePointsLimit(200),
 	)
 	firstCancel()
@@ -292,8 +286,11 @@ func fetchEqualizations(ctx context.Context, client *asc.Client, pricePointID, b
 
 	var result []equalization
 	for _, pp := range typed.Data {
-		territory := decodePricePointTerritory(pp.ID)
-		if territory == "" || strings.EqualFold(territory, baseTerritory) {
+		territory, err := subscriptionPricePointTerritory(pp.Relationships)
+		if err != nil {
+			return nil, fmt.Errorf("equalization %s: %w", strings.TrimSpace(pp.ID), err)
+		}
+		if strings.EqualFold(territory, baseTerritory) {
 			continue
 		}
 		result = append(result, equalization{
@@ -306,35 +303,26 @@ func fetchEqualizations(ctx context.Context, client *asc.Client, pricePointID, b
 	return result, nil
 }
 
-func decodePricePointTerritory(id string) string {
-	// Price point IDs are base64-encoded JSON: {"s":"...","t":"USA","p":"..."}
-	for _, encoding := range []*base64.Encoding{
-		base64.RawStdEncoding,
-		base64.StdEncoding,
-		base64.RawURLEncoding,
-		base64.URLEncoding,
-	} {
-		decoded, err := encoding.DecodeString(id)
-		if err != nil {
-			for _, candidate := range []string{id + "=", id + "=="} {
-				decoded, err = encoding.DecodeString(candidate)
-				if err == nil {
-					break
-				}
-			}
-			if err != nil {
-				continue
-			}
-		}
-		var payload pricePointIDPayload
-		if err := json.Unmarshal(decoded, &payload); err != nil {
-			continue
-		}
-		if payload.T != "" {
-			return payload.T
-		}
+func subscriptionPricePointTerritory(relationships json.RawMessage) (string, error) {
+	if len(relationships) == 0 {
+		return "", fmt.Errorf("missing territory relationship")
 	}
-	return ""
+
+	var payload struct {
+		Territory *asc.Relationship `json:"territory"`
+	}
+	if err := json.Unmarshal(relationships, &payload); err != nil {
+		return "", fmt.Errorf("parse relationships: %w", err)
+	}
+	if payload.Territory == nil {
+		return "", fmt.Errorf("missing territory relationship")
+	}
+
+	territory := strings.ToUpper(strings.TrimSpace(payload.Territory.Data.ID))
+	if territory == "" {
+		return "", fmt.Errorf("missing territory relationship id")
+	}
+	return territory, nil
 }
 
 func printEqualizeResult(result *equalizeResult, format string, pretty bool) error {
