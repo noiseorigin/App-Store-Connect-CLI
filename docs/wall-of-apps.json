@@ -41,6 +41,13 @@
     "platform": ["iOS", "macOS", "tvOS", "visionOS"]
   },
   {
+    "app": "BitLocal: BTC-Friendly Shops",
+    "link": "https://apps.apple.com/us/app/bitlocal-btc-friendly-shops/id6447485666?uo=4",
+    "creator": "joeycast",
+    "icon": "https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/71/18/13/71181314-64e0-ab1a-4e44-9f6134f12f01/AppIcon-0-0-1x_U007epad-0-1-0-85-220.png/512x512bb.jpg",
+    "platform": ["iOS"]
+  },
+  {
     "app": "Bloom",
     "link": "https://apps.apple.com/app/id6739955926",
     "creator": "mpdifran",
