@@ -6,8 +6,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -124,11 +124,7 @@ Examples:
 				}, *output.Output, *output.Pretty)
 			}
 
-			territoryIDs := make([]string, 0, len(allTerritories))
-			for _, eq := range allTerritories {
-				territoryIDs = append(territoryIDs, eq.Territory)
-			}
-			if err := syncEqualizeAvailability(ctx, client, subID, territoryIDs); err != nil {
+			if err := validateEqualizeAvailability(ctx, client, subID, allTerritories); err != nil {
 				return fmt.Errorf("equalize: %w", err)
 			}
 
@@ -353,42 +349,71 @@ func fetchEqualizations(ctx context.Context, client *asc.Client, pricePointID, b
 	return result, nil
 }
 
-func syncEqualizeAvailability(ctx context.Context, client *asc.Client, subID string, territoryIDs []string) error {
-	if len(territoryIDs) == 0 {
+func validateEqualizeAvailability(ctx context.Context, client *asc.Client, subID string, territories []equalization) error {
+	if len(territories) == 0 {
 		return nil
 	}
-
-	attrs := asc.SubscriptionAvailabilityAttributes{}
 
 	getCtx, getCancel := shared.ContextWithTimeout(ctx)
 	availability, err := client.GetSubscriptionAvailabilityForSubscription(getCtx, subID)
 	getCancel()
-	switch {
-	case err == nil:
-		attrs = availability.Data.Attributes
-	case isEqualizeAvailabilityMissing(err):
-	default:
+	if err != nil {
+		if errors.Is(err, asc.ErrNotFound) {
+			return fmt.Errorf("subscription availability is not configured; equalize only updates prices and will not change sale availability. Configure territories first with `asc subscriptions pricing availability set`")
+		}
 		return fmt.Errorf("failed to fetch availability: %w", err)
 	}
 
-	setCtx, setCancel := shared.ContextWithTimeout(ctx)
-	defer setCancel()
-
-	if _, err := client.CreateSubscriptionAvailability(setCtx, subID, territoryIDs, attrs); err != nil {
-		return fmt.Errorf("failed to sync availability: %w", err)
+	availabilityID := strings.TrimSpace(availability.Data.ID)
+	if availabilityID == "" {
+		return fmt.Errorf("availability readback returned empty id")
 	}
-	return nil
+
+	territoriesCtx, territoriesCancel := shared.ContextWithTimeout(ctx)
+	territoriesResp, err := client.GetSubscriptionAvailabilityAvailableTerritories(territoriesCtx, availabilityID, asc.WithSubscriptionAvailabilityTerritoriesLimit(200))
+	territoriesCancel()
+	if err != nil {
+		return fmt.Errorf("failed to fetch availability territories: %w", err)
+	}
+
+	available := make(map[string]struct{}, len(territoriesResp.Data))
+	for _, territory := range territoriesResp.Data {
+		id := strings.ToUpper(strings.TrimSpace(territory.ID))
+		if id == "" {
+			continue
+		}
+		available[id] = struct{}{}
+	}
+
+	missing := make([]string, 0)
+	for _, territory := range territories {
+		if _, ok := available[territory.Territory]; !ok {
+			missing = append(missing, territory.Territory)
+		}
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+
+	sort.Strings(missing)
+	return fmt.Errorf("subscription availability is missing %d equalized territor%s (%s); equalize only updates prices and will not change sale availability. Configure territories first with `asc subscriptions pricing availability set`", len(missing), pluralizeEqualizeTerritories(len(missing)), summarizeEqualizeTerritories(missing, 8))
 }
 
-func isEqualizeAvailabilityMissing(err error) bool {
-	if err == nil {
-		return false
+func pluralizeEqualizeTerritories(n int) string {
+	if n == 1 {
+		return "y"
 	}
-	if errors.Is(err, asc.ErrNotFound) {
-		return true
+	return "ies"
+}
+
+func summarizeEqualizeTerritories(territories []string, limit int) string {
+	if len(territories) == 0 {
+		return ""
 	}
-	apiErr, ok := errors.AsType[*asc.APIError](err)
-	return ok && apiErr != nil && apiErr.StatusCode == http.StatusNotFound
+	if limit <= 0 || len(territories) <= limit {
+		return strings.Join(territories, ", ")
+	}
+	return fmt.Sprintf("%s, and %d more", strings.Join(territories[:limit], ", "), len(territories)-limit)
 }
 
 func equalizationTerritoryID(pricePoint asc.Resource[asc.SubscriptionPricePointAttributes]) (string, error) {
