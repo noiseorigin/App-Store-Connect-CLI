@@ -12,6 +12,7 @@ import (
 
 	"github.com/peterbourgon/ff/v3/ffcli"
 
+	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/prerelease"
 	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/shared"
 )
 
@@ -720,6 +721,42 @@ func DeprecatedBetaNotificationsAliasCommand() *ffcli.Command {
 	)
 	setUsageFuncRecursively(cmd, shared.DeprecatedUsageFunc)
 	markDeprecatedSubcommands(cmd)
+	return cmd
+}
+
+func TestFlightPreReleaseCommand() *ffcli.Command {
+	cmd := rewriteCommandTree(
+		prerelease.PreReleaseVersionsCommand(),
+		"asc pre-release-versions",
+		"asc testflight pre-release",
+		map[string]string{
+			"pre-release-versions": "pre-release",
+			"get":                  "view",
+		},
+		[]textReplacement{
+			{old: "pre-release-versions ", new: "testflight pre-release "},
+			{old: "Manage TestFlight pre-release versions.", new: "Manage pre-release versions."},
+			{old: "List TestFlight pre-release versions", new: "List pre-release versions"},
+			{old: "Get a TestFlight pre-release version", new: "View a pre-release version"},
+			{old: "Get the app for a pre-release version", new: "View the app for a pre-release version"},
+			{old: "Get relationship linkages for a pre-release version", new: "View relationship linkages for a pre-release version"},
+			{old: "Get ", new: "View "},
+			{old: "get: ", new: "view: "},
+			{old: "get ", new: "view "},
+		},
+	)
+	cmd.ShortHelp = "Manage pre-release versions."
+	cmd.LongHelp = `Manage pre-release versions.
+
+Examples:
+  asc testflight pre-release list --app "APP_ID"
+  asc testflight pre-release view --id "PR_ID"
+  asc testflight pre-release app view --id "PR_ID"
+  asc testflight pre-release builds list --id "PR_ID"`
+	setUsageFuncRecursively(cmd, testflightVisibleUsageFunc)
+	if relationshipsCmd := findSubcommand(cmd, "relationships"); relationshipsCmd != nil {
+		hideTestFlightCommand(relationshipsCmd)
+	}
 	return cmd
 }
 

@@ -148,7 +148,7 @@ func Subcommands(version string) []*ffcli.Command {
 		agreements.AgreementsCommand(),
 		pricing.PricingCommand(),
 		preorders.PreOrdersCommand(),
-		prerelease.PreReleaseVersionsCommand(),
+		prerelease.RemovedPreReleaseVersionsCommand(),
 		localizations.LocalizationsCommand(),
 		metadata.MetadataCommand(),
 		screenshots.ScreenshotsCommand(),

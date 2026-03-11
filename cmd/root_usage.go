@@ -43,7 +43,7 @@ var rootUsageGroups = []rootCommandGroup{
 	{
 		title: "TESTFLIGHT & BUILD COMMANDS",
 		commands: []string{
-			"testflight", "feedback", "crashes", "builds", "build-bundles", "pre-release-versions",
+			"testflight", "feedback", "crashes", "builds", "build-bundles",
 			"build-localizations", "beta-app-localizations", "beta-build-localizations",
 			"sandbox",
 		},

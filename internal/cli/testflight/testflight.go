@@ -29,7 +29,8 @@ Examples:
   asc testflight metrics app-testers --app "APP_ID"
   asc testflight agreements view --app "APP_ID"
   asc testflight notifications send --build "BUILD_ID"
-  asc testflight config export --app "APP_ID" --output "./testflight.yaml"`,
+  asc testflight config export --app "APP_ID" --output "./testflight.yaml"
+  asc testflight pre-release list --app "APP_ID"`,
 		FlagSet:   fs,
 		UsageFunc: testflightVisibleUsageFunc,
 		Subcommands: []*ffcli.Command{
@@ -45,6 +46,7 @@ Examples:
 			TestFlightRecruitmentCommand(),
 			TestFlightMetricsSurfaceCommand(),
 			TestFlightConfigCommand(),
+			TestFlightPreReleaseCommand(),
 			DeprecatedBetaGroupsAliasCommand(),
 			DeprecatedBetaTestersAliasCommand(),
 			DeprecatedBetaFeedbackAliasCommand(),

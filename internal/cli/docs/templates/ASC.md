@@ -147,7 +147,6 @@ Use `asc <command> --help` for subcommands and flags.
 - `agreements` - Manage agreements in App Store Connect.
 - `pricing` - Manage app pricing and availability.
 - `pre-orders` - Manage app pre-orders.
-- `pre-release-versions` - Manage TestFlight pre-release versions.
 - `localizations` - Manage App Store localization metadata.
 - `metadata` - Pull, validate, and push canonical metadata workflows.
 - `screenshots` - Upload and manage App Store screenshots; local capture/frame workflow is `[experimental]`.

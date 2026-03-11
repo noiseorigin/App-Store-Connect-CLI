@@ -4443,13 +4443,13 @@ func TestPreReleaseVersionsValidationErrors(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name:    "pre-release-versions list missing app",
-			args:    []string{"pre-release-versions", "list"},
+			name:    "pre-release list missing app",
+			args:    []string{"testflight", "pre-release", "list"},
 			wantErr: "Error: --app is required",
 		},
 		{
-			name:    "pre-release-versions get missing id",
-			args:    []string{"pre-release-versions", "get"},
+			name:    "pre-release view missing id",
+			args:    []string{"testflight", "pre-release", "view"},
 			wantErr: "Error: --id is required",
 		},
 	}
