@@ -267,6 +267,8 @@ func BuildReadinessReport(ctx context.Context, opts ReadinessOptions) (validatio
 		IAPs:                        iaps,
 		IAPFetchSkipReason:          iapFetchSkipReason,
 		AgeRatingDeclaration:        ageRatingDecl,
+		ReleaseType:                 versionResp.Data.Attributes.ReleaseType,
+		EarliestReleaseDate:         versionResp.Data.Attributes.EarliestReleaseDate,
 	}, opts.Strict)
 
 	return report, nil

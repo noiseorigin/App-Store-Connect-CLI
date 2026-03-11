@@ -19,6 +19,7 @@ func Validate(input Input, strict bool) Report {
 	checks = append(checks, iapFetchChecks(input.IAPFetchSkipReason)...)
 	checks = append(checks, iapReviewReadinessChecks(input.IAPs)...)
 	checks = append(checks, ageRatingChecks(input.AgeRatingDeclaration)...)
+	checks = append(checks, releaseChecks(input.ReleaseType, input.EarliestReleaseDate)...)
 
 	summary := summarize(checks, strict)
 

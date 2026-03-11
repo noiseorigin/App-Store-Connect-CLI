@@ -1683,3 +1683,67 @@ func TestValidateNoIAPChecksWhenAppHasNoIAPs(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateWarnsScheduledReleaseDateInPast(t *testing.T) {
+	fixture := validValidateFixture()
+	fixture.version = `{"data":{"type":"appStoreVersions","id":"ver-1","attributes":{"platform":"IOS","versionString":"1.0","appVersionState":"PREPARE_FOR_SUBMISSION","releaseType":"SCHEDULED","earliestReleaseDate":"2020-01-01T00:00:00+00:00"},"relationships":{"app":{"data":{"type":"apps","id":"app-1"}}}}}`
+
+	client := newValidateTestClient(t, fixture)
+	restore := validate.SetClientFactory(func() (*asc.Client, error) {
+		return client, nil
+	})
+	defer restore()
+
+	root := RootCommand("1.2.3")
+	stdout, stderr := captureOutput(t, func() {
+		if err := root.Parse([]string{"validate", "--app", "app-1", "--version-id", "ver-1"}); err != nil {
+			t.Fatalf("parse error: %v", err)
+		}
+		if err := root.Run(context.Background()); err != nil {
+			t.Fatalf("expected no blocking errors, got %v", err)
+		}
+	})
+	if stderr != "" {
+		t.Fatalf("expected empty stderr, got %q", stderr)
+	}
+
+	var report validation.Report
+	if err := json.Unmarshal([]byte(stdout), &report); err != nil {
+		t.Fatalf("failed to parse JSON output: %v", err)
+	}
+	if !hasCheckWithID(report.Checks, "release.scheduled_date_past") {
+		t.Fatalf("expected release.scheduled_date_past warning, got %+v", report.Checks)
+	}
+}
+
+func TestValidateShowsManualReleaseInfo(t *testing.T) {
+	fixture := validValidateFixture()
+	fixture.version = `{"data":{"type":"appStoreVersions","id":"ver-1","attributes":{"platform":"IOS","versionString":"1.0","appVersionState":"PREPARE_FOR_SUBMISSION","releaseType":"MANUAL"},"relationships":{"app":{"data":{"type":"apps","id":"app-1"}}}}}`
+
+	client := newValidateTestClient(t, fixture)
+	restore := validate.SetClientFactory(func() (*asc.Client, error) {
+		return client, nil
+	})
+	defer restore()
+
+	root := RootCommand("1.2.3")
+	stdout, stderr := captureOutput(t, func() {
+		if err := root.Parse([]string{"validate", "--app", "app-1", "--version-id", "ver-1"}); err != nil {
+			t.Fatalf("parse error: %v", err)
+		}
+		if err := root.Run(context.Background()); err != nil {
+			t.Fatalf("expected no blocking errors, got %v", err)
+		}
+	})
+	if stderr != "" {
+		t.Fatalf("expected empty stderr, got %q", stderr)
+	}
+
+	var report validation.Report
+	if err := json.Unmarshal([]byte(stdout), &report); err != nil {
+		t.Fatalf("failed to parse JSON output: %v", err)
+	}
+	if !hasCheckWithID(report.Checks, "release.type_manual") {
+		t.Fatalf("expected release.type_manual info check, got %+v", report.Checks)
+	}
+}

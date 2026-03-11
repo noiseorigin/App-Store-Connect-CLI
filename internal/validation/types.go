@@ -63,6 +63,8 @@ type Input struct {
 	IAPs                        []IAP
 	IAPFetchSkipReason          string
 	AgeRatingDeclaration        *AgeRatingDeclaration
+	ReleaseType                 string
+	EarliestReleaseDate         string
 }
 
 // VersionLocalization represents version-level metadata.
