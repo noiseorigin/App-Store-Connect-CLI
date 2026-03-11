@@ -12,6 +12,7 @@ import (
 
 	"github.com/peterbourgon/ff/v3/ffcli"
 
+	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/betaapplocalizations"
 	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/prerelease"
 	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/shared"
 )
@@ -721,6 +722,42 @@ func DeprecatedBetaNotificationsAliasCommand() *ffcli.Command {
 	)
 	setUsageFuncRecursively(cmd, shared.DeprecatedUsageFunc)
 	markDeprecatedSubcommands(cmd)
+	return cmd
+}
+
+func TestFlightAppLocalizationsCommand() *ffcli.Command {
+	cmd := rewriteCommandTree(
+		betaapplocalizations.BetaAppLocalizationsCommand(),
+		"asc beta-app-localizations",
+		"asc testflight app-localizations",
+		map[string]string{
+			"beta-app-localizations": "app-localizations",
+		},
+		[]textReplacement{
+			{old: "beta-app-localizations ", new: "testflight app-localizations "},
+			{old: "Manage TestFlight beta app localizations.", new: "Manage TestFlight app localizations."},
+			{old: "Manage TestFlight beta app localizations", new: "Manage TestFlight app localizations"},
+			{old: "List beta app localizations", new: "List app localizations"},
+			{old: "Get a beta app localization", new: "Get an app localization"},
+			{old: "Create a beta app localization", new: "Create an app localization"},
+			{old: "Update a beta app localization", new: "Update an app localization"},
+			{old: "Delete a beta app localization", new: "Delete an app localization"},
+			{old: "View the app for a beta app localization", new: "View the app for an app localization"},
+			{old: "beta app localizations", new: "app localizations"},
+			{old: "Beta app localizations", new: "App localizations"},
+			{old: "beta app localization", new: "app localization"},
+			{old: "Beta app localization", new: "App localization"},
+		},
+	)
+	cmd.ShortHelp = "Manage TestFlight app localizations."
+	cmd.LongHelp = `Manage TestFlight app localizations.
+
+Examples:
+  asc testflight app-localizations list --app "APP_ID"
+  asc testflight app-localizations get --id "LOCALIZATION_ID"
+  asc testflight app-localizations app get --id "LOCALIZATION_ID"
+  asc testflight app-localizations create --app "APP_ID" --locale "en-US" --description "Welcome testers"`
+	setUsageFuncRecursively(cmd, testflightVisibleUsageFunc)
 	return cmd
 }
 

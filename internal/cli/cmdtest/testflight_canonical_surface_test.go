@@ -38,6 +38,7 @@ func TestTestFlightHelpShowsCanonicalSubcommands(t *testing.T) {
 		"agreements",
 		"notifications",
 		"config",
+		"app-localizations",
 		"pre-release",
 	} {
 		if !strings.Contains(stderr, want) {
@@ -53,6 +54,7 @@ func TestTestFlightHelpShowsCanonicalSubcommands(t *testing.T) {
 		"beta-details",
 		"beta-license-agreements",
 		"beta-notifications",
+		"beta-app-localizations",
 	} {
 		if strings.Contains(stderr, legacy) {
 			t.Fatalf("expected help to hide legacy alias %q, got %q", legacy, stderr)
@@ -82,6 +84,9 @@ func TestRootHelpHidesDeprecatedCompatibilityCommands(t *testing.T) {
 	}
 	if strings.Contains(stderr, "crashes:") {
 		t.Fatalf("expected root help to hide deprecated crashes command, got %q", stderr)
+	}
+	if strings.Contains(stderr, "beta-app-localizations:") {
+		t.Fatalf("expected root help to hide deprecated beta-app-localizations command, got %q", stderr)
 	}
 	if !strings.Contains(stderr, "testflight:") {
 		t.Fatalf("expected root help to still show testflight command, got %q", stderr)
@@ -168,6 +173,24 @@ func TestDeprecatedHelpShowsCanonicalPathsOnly(t *testing.T) {
 			wantWarning: "",
 			wantNotShown: []string{
 				"asc testflight beta-notifications <subcommand> [flags]",
+			},
+		},
+		{
+			name:        "beta app localizations root help",
+			args:        []string{"beta-app-localizations"},
+			wantUsage:   "asc testflight app-localizations <subcommand> [flags]",
+			wantWarning: "",
+			wantNotShown: []string{
+				"asc beta-app-localizations <subcommand> [flags]",
+			},
+		},
+		{
+			name:        "beta app localizations leaf help",
+			args:        []string{"beta-app-localizations", "get"},
+			wantUsage:   "asc testflight app-localizations get --id \"LOCALIZATION_ID\"",
+			wantWarning: "",
+			wantNotShown: []string{
+				"asc beta-app-localizations get --id \"LOCALIZATION_ID\"",
 			},
 		},
 		{
@@ -473,6 +496,21 @@ func TestCanonicalTestFlightValidationPaths(t *testing.T) {
 			name:    "config export missing app",
 			args:    []string{"testflight", "config", "export"},
 			wantErr: "--app is required",
+		},
+		{
+			name:    "app localizations list missing app",
+			args:    []string{"testflight", "app-localizations", "list"},
+			wantErr: "--app is required",
+		},
+		{
+			name:    "app localizations get missing id",
+			args:    []string{"testflight", "app-localizations", "get"},
+			wantErr: "--id is required",
+		},
+		{
+			name:    "app localizations create missing locale",
+			args:    []string{"testflight", "app-localizations", "create", "--app", "APP_ID"},
+			wantErr: "--locale is required",
 		},
 		{
 			name:    "pre-release list missing app",
@@ -1159,6 +1197,169 @@ func TestLegacyAliasesAcceptCanonicalFlags(t *testing.T) {
 				t.Fatalf("expected output to contain %q, got %q", test.wantID, stdout)
 			}
 		})
+	}
+}
+
+func TestTestFlightAppLocalizationsHelpShowsCanonicalSurface(t *testing.T) {
+	root := RootCommand("1.2.3")
+
+	var runErr error
+	stdout, stderr := captureOutput(t, func() {
+		if err := root.Parse([]string{"testflight", "app-localizations"}); err != nil {
+			t.Fatalf("parse error: %v", err)
+		}
+		runErr = root.Run(context.Background())
+	})
+
+	if !errors.Is(runErr, flag.ErrHelp) {
+		t.Fatalf("expected ErrHelp, got %v", runErr)
+	}
+	if stdout != "" {
+		t.Fatalf("expected empty stdout, got %q", stdout)
+	}
+	for _, want := range []string{"list", "get", "app", "create", "update", "delete"} {
+		if !strings.Contains(stderr, want) {
+			t.Fatalf("expected app-localizations help to contain %q, got %q", want, stderr)
+		}
+	}
+	if strings.Contains(stderr, "beta-app-localizations") {
+		t.Fatalf("expected canonical help without legacy root path, got %q", stderr)
+	}
+}
+
+func TestLegacyBetaAppLocalizationsAliasWarnsAndDelegates(t *testing.T) {
+	setupAuth(t)
+	t.Setenv("ASC_CONFIG_PATH", filepath.Join(t.TempDir(), "nonexistent.json"))
+
+	originalTransport := http.DefaultTransport
+	t.Cleanup(func() {
+		http.DefaultTransport = originalTransport
+	})
+
+	http.DefaultTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.Method != http.MethodGet {
+			t.Fatalf("expected GET, got %s", req.Method)
+		}
+		if req.URL.Path != "/v1/betaAppLocalizations" {
+			t.Fatalf("expected path /v1/betaAppLocalizations, got %s", req.URL.Path)
+		}
+		if req.URL.Query().Get("filter[app]") != "123" {
+			t.Fatalf("expected filter[app]=123, got %q", req.URL.Query().Get("filter[app]"))
+		}
+		body := `{"data":[{"type":"betaAppLocalizations","id":"loc-1"}],"links":{"next":""}}`
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+		}, nil
+	})
+
+	root := RootCommand("1.2.3")
+	root.FlagSet.SetOutput(io.Discard)
+
+	stdout, stderr := captureOutput(t, func() {
+		if err := root.Parse([]string{"beta-app-localizations", "list", "--app", "123"}); err != nil {
+			t.Fatalf("parse error: %v", err)
+		}
+		if err := root.Run(context.Background()); err != nil {
+			t.Fatalf("run error: %v", err)
+		}
+	})
+
+	if !strings.Contains(stdout, `"id":"loc-1"`) {
+		t.Fatalf("expected delegated output, got %q", stdout)
+	}
+	requireStderrContainsWarning(t, stderr, betaAppLocalizationsListDeprecationWarning)
+}
+
+func TestTestFlightAppLocalizationsListOutputHasNoDeprecationWarning(t *testing.T) {
+	setupAuth(t)
+	t.Setenv("ASC_CONFIG_PATH", filepath.Join(t.TempDir(), "nonexistent.json"))
+
+	originalTransport := http.DefaultTransport
+	t.Cleanup(func() {
+		http.DefaultTransport = originalTransport
+	})
+
+	http.DefaultTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.Method != http.MethodGet {
+			t.Fatalf("expected GET, got %s", req.Method)
+		}
+		if req.URL.Path != "/v1/betaAppLocalizations" {
+			t.Fatalf("expected path /v1/betaAppLocalizations, got %s", req.URL.Path)
+		}
+		if req.URL.Query().Get("filter[app]") != "123" {
+			t.Fatalf("expected filter[app]=123, got %q", req.URL.Query().Get("filter[app]"))
+		}
+		body := `{"data":[{"type":"betaAppLocalizations","id":"loc-1"}],"links":{"next":""}}`
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+		}, nil
+	})
+
+	root := RootCommand("1.2.3")
+	root.FlagSet.SetOutput(io.Discard)
+
+	stdout, stderr := captureOutput(t, func() {
+		if err := root.Parse([]string{"testflight", "app-localizations", "list", "--app", "123"}); err != nil {
+			t.Fatalf("parse error: %v", err)
+		}
+		if err := root.Run(context.Background()); err != nil {
+			t.Fatalf("run error: %v", err)
+		}
+	})
+
+	if stderr != "" {
+		t.Fatalf("expected empty stderr, got %q", stderr)
+	}
+	if !strings.Contains(stdout, `"id":"loc-1"`) {
+		t.Fatalf("expected output, got %q", stdout)
+	}
+}
+
+func TestTestFlightAppLocalizationsCreateOutput(t *testing.T) {
+	setupAuth(t)
+	t.Setenv("ASC_CONFIG_PATH", filepath.Join(t.TempDir(), "nonexistent.json"))
+
+	originalTransport := http.DefaultTransport
+	t.Cleanup(func() {
+		http.DefaultTransport = originalTransport
+	})
+
+	http.DefaultTransport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.Method != http.MethodPost {
+			t.Fatalf("expected POST, got %s", req.Method)
+		}
+		if req.URL.Path != "/v1/betaAppLocalizations" {
+			t.Fatalf("expected path /v1/betaAppLocalizations, got %s", req.URL.Path)
+		}
+		body := `{"data":{"type":"betaAppLocalizations","id":"loc-1","attributes":{"locale":"en-US"}}}`
+		return &http.Response{
+			StatusCode: http.StatusCreated,
+			Body:       io.NopCloser(strings.NewReader(body)),
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+		}, nil
+	})
+
+	root := RootCommand("1.2.3")
+	root.FlagSet.SetOutput(io.Discard)
+
+	stdout, stderr := captureOutput(t, func() {
+		if err := root.Parse([]string{"testflight", "app-localizations", "create", "--app", "app-1", "--locale", "en-US"}); err != nil {
+			t.Fatalf("parse error: %v", err)
+		}
+		if err := root.Run(context.Background()); err != nil {
+			t.Fatalf("run error: %v", err)
+		}
+	})
+
+	if stderr != "" {
+		t.Fatalf("expected empty stderr, got %q", stderr)
+	}
+	if !strings.Contains(stdout, `"id":"loc-1"`) {
+		t.Fatalf("expected created localization in output, got %q", stdout)
 	}
 }
 

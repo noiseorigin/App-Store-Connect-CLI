@@ -152,7 +152,6 @@ Use `asc <command> --help` for subcommands and flags.
 - `screenshots` - Upload and manage App Store screenshots; local capture/frame workflow is `[experimental]`.
 - `background-assets` - Manage background assets.
 - `build-localizations` - Manage build release notes localizations.
-- `beta-app-localizations` - Manage TestFlight beta app localizations.
 - `sandbox` - Manage sandbox testers in App Store Connect.
 - `video-previews` - Manage App Store app preview videos.
 - `signing` - Manage signing certificates and profiles.

@@ -30,6 +30,7 @@ Examples:
   asc testflight agreements view --app "APP_ID"
   asc testflight notifications send --build "BUILD_ID"
   asc testflight config export --app "APP_ID" --output "./testflight.yaml"
+  asc testflight app-localizations list --app "APP_ID"
   asc testflight pre-release list --app "APP_ID"`,
 		FlagSet:   fs,
 		UsageFunc: testflightVisibleUsageFunc,
@@ -46,6 +47,7 @@ Examples:
 			TestFlightRecruitmentCommand(),
 			TestFlightMetricsSurfaceCommand(),
 			TestFlightConfigCommand(),
+			TestFlightAppLocalizationsCommand(),
 			TestFlightPreReleaseCommand(),
 			DeprecatedBetaGroupsAliasCommand(),
 			DeprecatedBetaTestersAliasCommand(),

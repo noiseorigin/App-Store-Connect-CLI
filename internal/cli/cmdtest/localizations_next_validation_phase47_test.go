@@ -10,6 +10,9 @@ import (
 )
 
 func expectedLocalizationsStderr(argsPrefix []string) string {
+	if len(argsPrefix) >= 2 && argsPrefix[0] == "beta-app-localizations" && argsPrefix[1] == "list" {
+		return betaAppLocalizationsListDeprecationWarning
+	}
 	if len(argsPrefix) >= 2 && argsPrefix[0] == "beta-build-localizations" && argsPrefix[1] == "list" {
 		return "Warning: `asc beta-build-localizations list` is deprecated. Use `asc builds test-notes list`"
 	}

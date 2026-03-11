@@ -155,7 +155,7 @@ func Subcommands(version string) []*ffcli.Command {
 		videopreviews.VideoPreviewsCommand(),
 		backgroundassets.BackgroundAssetsCommand(),
 		buildlocalizations.BuildLocalizationsCommand(),
-		betaapplocalizations.BetaAppLocalizationsCommand(),
+		betaapplocalizations.DeprecatedBetaAppLocalizationsCommand(),
 		betabuildlocalizations.BetaBuildLocalizationsCommand(),
 		sandbox.SandboxCommand(),
 		signing.SigningCommand(),
