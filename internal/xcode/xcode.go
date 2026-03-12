@@ -2,7 +2,6 @@ package xcode
 
 import (
 	"archive/zip"
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -21,6 +20,8 @@ var (
 	lookPathFn       = exec.LookPath
 	commandContextFn = exec.CommandContext
 )
+
+const xcodebuildErrorTailLimit = 64 * 1024
 
 type ArchiveOptions struct {
 	WorkspacePath  string
@@ -312,24 +313,70 @@ func runXcodebuild(ctx context.Context, args []string, logWriter io.Writer) erro
 		ctx = context.Background()
 	}
 	cmd := commandContextFn(ctx, "xcodebuild", args...)
-	var output bytes.Buffer
-	switch {
-	case logWriter == nil:
-		cmd.Stdout = &output
-		cmd.Stderr = &output
-	default:
-		writer := io.MultiWriter(logWriter, &output)
-		cmd.Stdout = writer
-		cmd.Stderr = writer
+	outputTail := newTailBuffer(xcodebuildErrorTailLimit)
+	writer := io.Writer(outputTail)
+	if logWriter != nil {
+		writer = io.MultiWriter(logWriter, outputTail)
 	}
+	cmd.Stdout = writer
+	cmd.Stderr = writer
 	if err := cmd.Run(); err != nil {
-		detail := strings.TrimSpace(output.String())
+		detail := strings.TrimSpace(outputTail.String())
 		if detail != "" {
+			if outputTail.Truncated() {
+				return fmt.Errorf(
+					"xcodebuild %s failed (showing last %d bytes): %s",
+					summarizeAction(args),
+					xcodebuildErrorTailLimit,
+					detail,
+				)
+			}
 			return fmt.Errorf("xcodebuild %s failed: %s", summarizeAction(args), detail)
 		}
 		return fmt.Errorf("xcodebuild %s failed: %w", summarizeAction(args), err)
 	}
 	return nil
+}
+
+type tailBuffer struct {
+	limit     int
+	data      []byte
+	truncated bool
+}
+
+func newTailBuffer(limit int) *tailBuffer {
+	return &tailBuffer{limit: limit}
+}
+
+func (b *tailBuffer) Write(p []byte) (int, error) {
+	if b.limit <= 0 {
+		return len(p), nil
+	}
+	if len(p) >= b.limit {
+		b.data = append(b.data[:0], p[len(p)-b.limit:]...)
+		b.truncated = true
+		return len(p), nil
+	}
+
+	if overflow := len(b.data) + len(p) - b.limit; overflow > 0 {
+		if overflow >= len(b.data) {
+			b.data = b.data[:0]
+		} else {
+			b.data = append(b.data[:0], b.data[overflow:]...)
+		}
+		b.truncated = true
+	}
+
+	b.data = append(b.data, p...)
+	return len(p), nil
+}
+
+func (b *tailBuffer) String() string {
+	return string(b.data)
+}
+
+func (b *tailBuffer) Truncated() bool {
+	return b.truncated
 }
 
 func summarizeAction(args []string) string {

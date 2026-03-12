@@ -300,6 +300,40 @@ func TestExportRejectsExistingIPAWithoutOverwrite(t *testing.T) {
 	}
 }
 
+func TestRunXcodebuildWithLogWriterKeepsOnlyTailInErrorMessage(t *testing.T) {
+	tempDir := t.TempDir()
+	logPath := filepath.Join(tempDir, "commands.log")
+
+	restore := overrideTestEnvironment(t)
+	commandContextFn = helperCommandContext(t, logPath)
+	t.Cleanup(restore)
+
+	var streamed bytes.Buffer
+	err := runXcodebuild(context.Background(), []string{"fail-large-output"}, &streamed)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	streamedOutput := streamed.String()
+	if !strings.Contains(streamedOutput, "EARLY-MARKER") {
+		t.Fatalf("expected streamed output to include early marker, got %q", streamedOutput)
+	}
+	if !strings.Contains(streamedOutput, "LATE-MARKER") {
+		t.Fatalf("expected streamed output to include late marker, got %q", streamedOutput)
+	}
+
+	errorText := err.Error()
+	if !strings.Contains(errorText, "showing last") {
+		t.Fatalf("expected truncated tail message, got %v", err)
+	}
+	if strings.Contains(errorText, "EARLY-MARKER") {
+		t.Fatalf("expected early marker to be dropped from tail, got %v", err)
+	}
+	if !strings.Contains(errorText, "LATE-MARKER") {
+		t.Fatalf("expected late marker in error tail, got %v", err)
+	}
+}
+
 func overrideTestEnvironment(t *testing.T) func() {
 	t.Helper()
 
@@ -384,6 +418,13 @@ func TestXcodeHelperProcess(t *testing.T) {
 			os.Exit(2)
 		}
 		os.Exit(0)
+	}
+
+	if len(commandArgs) >= 2 && commandArgs[0] == "xcodebuild" && commandArgs[1] == "fail-large-output" {
+		fmt.Fprint(os.Stderr, "EARLY-MARKER\n")
+		fmt.Fprint(os.Stderr, strings.Repeat("x", xcodebuildErrorTailLimit+128))
+		fmt.Fprint(os.Stderr, "\nLATE-MARKER\n")
+		os.Exit(1)
 	}
 
 	fmt.Fprintf(os.Stderr, "unexpected helper invocation: %v\n", commandArgs)
