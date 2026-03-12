@@ -415,6 +415,44 @@ func TestEnrichSubmissions_ItemWithoutVersionRelationship(t *testing.T) {
 	}
 }
 
+func TestPrintHistoryTable_NoError(t *testing.T) {
+	entries := []SubmissionHistoryEntry{
+		{
+			SubmissionID:  "sub-1",
+			VersionString: "3.1.1",
+			Platform:      "TV_OS",
+			State:         "COMPLETE",
+			SubmittedDate: "2026-03-01T12:00:00Z",
+			Outcome:       "approved",
+			Items:         []SubmissionHistoryItem{{ID: "i1", State: "APPROVED", Type: "appStoreVersion", ResourceID: "v1"}},
+		},
+	}
+	err := printHistoryTable(entries)
+	if err != nil {
+		t.Fatalf("printHistoryTable error: %v", err)
+	}
+}
+
+func TestFormatItemsSummary(t *testing.T) {
+	tests := []struct {
+		name  string
+		items []SubmissionHistoryItem
+		want  string
+	}{
+		{"no items", nil, "0 items"},
+		{"single approved", []SubmissionHistoryItem{{State: "APPROVED"}}, "1 approved"},
+		{"mixed", []SubmissionHistoryItem{{State: "APPROVED"}, {State: "REJECTED"}}, "1 approved, 1 rejected"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatItemsSummary(tt.items)
+			if got != tt.want {
+				t.Errorf("formatItemsSummary() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestEnrichSubmissions_SkipsEmptySubmittedDate(t *testing.T) {
 	calls := 0
 	transport := testRoundTripper(func(req *http.Request) (*http.Response, error) {

@@ -214,16 +214,54 @@ func enrichSubmissions(ctx context.Context, client *asc.Client, submissions []as
 	return entries, nil
 }
 
-// printHistoryTable renders submission history as a table.
-// This is a placeholder that will be fully implemented in Task 4.
-func printHistoryTable(_ []SubmissionHistoryEntry) error {
+func printHistoryTable(entries []SubmissionHistoryEntry) error {
+	headers := []string{"VERSION", "PLATFORM", "STATE", "SUBMITTED", "OUTCOME", "ITEMS"}
+	rows := make([][]string, 0, len(entries))
+	for _, e := range entries {
+		rows = append(rows, []string{
+			e.VersionString,
+			e.Platform,
+			e.State,
+			e.SubmittedDate,
+			e.Outcome,
+			formatItemsSummary(e.Items),
+		})
+	}
+	asc.RenderTable(headers, rows)
 	return nil
 }
 
-// printHistoryMarkdown renders submission history as markdown.
-// This is a placeholder that will be fully implemented in Task 4.
-func printHistoryMarkdown(_ []SubmissionHistoryEntry) error {
+func printHistoryMarkdown(entries []SubmissionHistoryEntry) error {
+	headers := []string{"VERSION", "PLATFORM", "STATE", "SUBMITTED", "OUTCOME", "ITEMS"}
+	rows := make([][]string, 0, len(entries))
+	for _, e := range entries {
+		rows = append(rows, []string{
+			e.VersionString,
+			e.Platform,
+			e.State,
+			e.SubmittedDate,
+			e.Outcome,
+			formatItemsSummary(e.Items),
+		})
+	}
+	asc.RenderMarkdown(headers, rows)
 	return nil
+}
+
+func formatItemsSummary(items []SubmissionHistoryItem) string {
+	if len(items) == 0 {
+		return "0 items"
+	}
+	counts := map[string]int{}
+	for _, item := range items {
+		counts[strings.ToLower(item.State)]++
+	}
+	var parts []string
+	for state, count := range counts {
+		parts = append(parts, fmt.Sprintf("%d %s", count, state))
+	}
+	sort.Strings(parts)
+	return strings.Join(parts, ", ")
 }
 
 // deriveOutcome computes a human-readable outcome from submission and item states.
