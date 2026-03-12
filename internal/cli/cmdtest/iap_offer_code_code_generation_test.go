@@ -415,6 +415,34 @@ func TestIAPOfferCodesOneTimeCodesCreateMissingExpirationDate(t *testing.T) {
 	}
 }
 
+func TestIAPOfferCodesOneTimeCodesCreateInvalidEnvironment(t *testing.T) {
+	root := RootCommand("1.2.3")
+	root.FlagSet.SetOutput(io.Discard)
+
+	stdout, stderr := captureOutput(t, func() {
+		if err := root.Parse([]string{
+			"iap", "offer-codes", "one-time-codes", "create",
+			"--offer-code-id", "offer-1",
+			"--quantity", "100",
+			"--expiration-date", "2026-12-31",
+			"--environment", "beta",
+		}); err != nil {
+			t.Fatalf("parse error: %v", err)
+		}
+		err := root.Run(context.Background())
+		if !errors.Is(err, flag.ErrHelp) {
+			t.Fatalf("expected ErrHelp, got %v", err)
+		}
+	})
+
+	if stdout != "" {
+		t.Fatalf("expected empty stdout, got %q", stdout)
+	}
+	if !strings.Contains(stderr, "Error: --environment must be one of: PRODUCTION, SANDBOX") {
+		t.Fatalf("expected stderr to contain environment validation error, got %q", stderr)
+	}
+}
+
 func TestIAPOfferCodesOneTimeCodesCreateSuccess(t *testing.T) {
 	setupAuth(t)
 	t.Setenv("ASC_CONFIG_PATH", filepath.Join(t.TempDir(), "nonexistent.json"))
