@@ -20,28 +20,6 @@ func ContextWithTimeoutDuration(ctx context.Context, timeout time.Duration) (con
 	return context.WithTimeout(ctx, timeout)
 }
 
-// WaitForBuildByNumber waits for a build matching version/build number.
-func WaitForBuildByNumber(ctx context.Context, client *asc.Client, appID, version, buildNumber, platform string, pollInterval time.Duration) (*asc.BuildResponse, error) {
-	if pollInterval <= 0 {
-		pollInterval = PublishDefaultPollInterval
-	}
-	buildNumber = strings.TrimSpace(buildNumber)
-	if buildNumber == "" {
-		return nil, fmt.Errorf("build number is required to resolve build")
-	}
-
-	return asc.PollUntil(ctx, pollInterval, func(ctx context.Context) (*asc.BuildResponse, bool, error) {
-		build, err := findBuildByNumber(ctx, client, appID, version, buildNumber, platform)
-		if err != nil {
-			return nil, false, err
-		}
-		if build != nil {
-			return build, true, nil
-		}
-		return nil, false, nil
-	})
-}
-
 // WaitForBuildByNumberOrUploadFailure waits for a build matching version/build
 // number to appear while also watching the originating build upload for early
 // failure states. This prevents long hangs when App Store Connect rejects the
