@@ -108,6 +108,43 @@ func TestUploadScreenshotsDryRunReportsWouldUpload(t *testing.T) {
 	}
 }
 
+func TestUploadScreenshotsDryRunDoesNotCreateSet(t *testing.T) {
+	filePath := writeAssetsTestPNG(t, t.TempDir(), "01-home.png")
+
+	origTransport := http.DefaultTransport
+	http.DefaultTransport = assetsUploadRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		switch {
+		case req.Method == http.MethodGet && req.URL.Path == "/v1/appStoreVersionLocalizations/LOC_123/appScreenshotSets":
+			return assetsJSONResponse(http.StatusOK, `{"data":[],"links":{}}`)
+		default:
+			t.Fatalf("dry-run must not issue mutating requests: %s %s", req.Method, req.URL.String())
+			return nil, nil
+		}
+	})
+	t.Cleanup(func() {
+		http.DefaultTransport = origTransport
+	})
+
+	client := newAssetsUploadTestClient(t)
+	result, err := uploadScreenshots(context.Background(), client, "LOC_123", "APP_IPHONE_65", []string{filePath}, false, false, true)
+	if err != nil {
+		t.Fatalf("uploadScreenshots() error: %v", err)
+	}
+
+	if !result.DryRun {
+		t.Fatal("expected DryRun=true")
+	}
+	if result.SetID != "" {
+		t.Fatalf("expected empty set ID when no set exists, got %q", result.SetID)
+	}
+	if len(result.Results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(result.Results))
+	}
+	if result.Results[0].State != "would-upload" {
+		t.Fatalf("expected state would-upload, got %q", result.Results[0].State)
+	}
+}
+
 func TestUploadScreenshotsDryRunWithReplaceReportsWouldDelete(t *testing.T) {
 	filePath := writeAssetsTestPNG(t, t.TempDir(), "01-home.png")
 

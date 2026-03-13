@@ -547,6 +547,21 @@ func NormalizePreviewType(input string) (string, error) {
 	return normalizePreviewType(input)
 }
 
+func findPreviewSet(ctx context.Context, client *asc.Client, localizationID, previewType string) (asc.Resource[asc.AppPreviewSetAttributes], error) {
+	resp, err := client.GetAppPreviewSets(ctx, localizationID)
+	if err != nil {
+		return asc.Resource[asc.AppPreviewSetAttributes]{}, err
+	}
+	for _, set := range resp.Data {
+		if strings.EqualFold(set.Attributes.PreviewType, previewType) {
+			return set, nil
+		}
+	}
+	return asc.Resource[asc.AppPreviewSetAttributes]{
+		Attributes: asc.AppPreviewSetAttributes{PreviewType: previewType},
+	}, nil
+}
+
 func ensurePreviewSet(ctx context.Context, client *asc.Client, localizationID, previewType string) (asc.Resource[asc.AppPreviewSetAttributes], error) {
 	resp, err := client.GetAppPreviewSets(ctx, localizationID)
 	if err != nil {
@@ -645,14 +660,20 @@ func uploadPreviews(ctx context.Context, client *asc.Client, localizationID, pre
 	}
 
 	requestCtx, reqCancel := shared.ContextWithTimeout(ctx)
-	set, err := ensurePreviewSet(requestCtx, client, localizationID, previewType)
+	var set asc.Resource[asc.AppPreviewSetAttributes]
+	var err error
+	if dryRun {
+		set, err = findPreviewSet(requestCtx, client, localizationID, previewType)
+	} else {
+		set, err = ensurePreviewSet(requestCtx, client, localizationID, previewType)
+	}
 	reqCancel()
 	if err != nil {
 		return asc.AppPreviewUploadResult{}, err
 	}
 
 	existingPreviews := make([]asc.Resource[asc.AppPreviewAttributes], 0)
-	if skipExisting || replace {
+	if (skipExisting || replace) && set.ID != "" {
 		fetchCtx, fetchCancel := shared.ContextWithTimeout(ctx)
 		existingResp, err := client.GetAppPreviews(fetchCtx, set.ID)
 		fetchCancel()

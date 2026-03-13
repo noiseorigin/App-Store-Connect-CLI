@@ -648,6 +648,21 @@ func ValidateScreenshotDimensions(files []string, displayType string) error {
 	return validateScreenshotDimensions(files, displayType)
 }
 
+func findScreenshotSet(ctx context.Context, client *asc.Client, localizationID, displayType string) (asc.Resource[asc.AppScreenshotSetAttributes], error) {
+	resp, err := client.GetAppScreenshotSets(ctx, localizationID)
+	if err != nil {
+		return asc.Resource[asc.AppScreenshotSetAttributes]{}, err
+	}
+	for _, set := range resp.Data {
+		if strings.EqualFold(set.Attributes.ScreenshotDisplayType, displayType) {
+			return set, nil
+		}
+	}
+	return asc.Resource[asc.AppScreenshotSetAttributes]{
+		Attributes: asc.AppScreenshotSetAttributes{ScreenshotDisplayType: displayType},
+	}, nil
+}
+
 func ensureScreenshotSet(ctx context.Context, client *asc.Client, localizationID, displayType string) (asc.Resource[asc.AppScreenshotSetAttributes], error) {
 	resp, err := client.GetAppScreenshotSets(ctx, localizationID)
 	if err != nil {
@@ -671,14 +686,20 @@ func uploadScreenshots(ctx context.Context, client *asc.Client, localizationID, 
 	}
 
 	requestCtx, reqCancel := shared.ContextWithTimeout(ctx)
-	set, err := ensureScreenshotSet(requestCtx, client, localizationID, displayType)
+	var set asc.Resource[asc.AppScreenshotSetAttributes]
+	var err error
+	if dryRun {
+		set, err = findScreenshotSet(requestCtx, client, localizationID, displayType)
+	} else {
+		set, err = ensureScreenshotSet(requestCtx, client, localizationID, displayType)
+	}
 	reqCancel()
 	if err != nil {
 		return asc.AppScreenshotUploadResult{}, err
 	}
 
 	existingScreenshots := make([]asc.Resource[asc.AppScreenshotAttributes], 0)
-	if skipExisting || replace {
+	if (skipExisting || replace) && set.ID != "" {
 		fetchCtx, fetchCancel := shared.ContextWithTimeout(ctx)
 		existingResp, err := client.GetAppScreenshots(fetchCtx, set.ID)
 		fetchCancel()
