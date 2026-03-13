@@ -340,6 +340,13 @@
     "platform": ["iOS", "macOS"]
   },
   {
+    "app": "murmur: ai interview roleplay",
+    "link": "https://apps.apple.com/us/app/murmur-ai-interview-roleplay/id6755495030?uo=4",
+    "creator": "valzevul",
+    "icon": "https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/a6/6f/1d/a66f1dd5-40fb-a7e8-f089-53f1790e67d7/AppIcon-0-0-1x_U007epad-0-1-0-85-220.png/512x512bb.jpg",
+    "platform": ["iOS"]
+  },
+  {
     "app": "Palabros - Diccionario",
     "link": "https://apps.apple.com/us/app/palabros-diccionario/id6758098070?uo=4",
     "creator": "nachocerrato",
