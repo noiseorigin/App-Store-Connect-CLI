@@ -668,17 +668,18 @@ func uploadScreenshots(ctx context.Context, client *asc.Client, localizationID, 
 		return asc.AppScreenshotUploadResult{}, fmt.Errorf("client is required")
 	}
 
-	uploadCtx, cancel := contextWithAssetUploadTimeout(ctx)
-	defer cancel()
-
-	set, err := ensureScreenshotSet(uploadCtx, client, localizationID, displayType)
+	requestCtx, reqCancel := shared.ContextWithTimeout(ctx)
+	set, err := ensureScreenshotSet(requestCtx, client, localizationID, displayType)
+	reqCancel()
 	if err != nil {
 		return asc.AppScreenshotUploadResult{}, err
 	}
 
 	existingScreenshots := make([]asc.Resource[asc.AppScreenshotAttributes], 0)
 	if skipExisting || replace {
-		existingResp, err := client.GetAppScreenshots(uploadCtx, set.ID)
+		fetchCtx, fetchCancel := shared.ContextWithTimeout(ctx)
+		existingResp, err := client.GetAppScreenshots(fetchCtx, set.ID)
+		fetchCancel()
 		if err != nil {
 			return asc.AppScreenshotUploadResult{}, err
 		}
@@ -692,6 +693,9 @@ func uploadScreenshots(ctx context.Context, client *asc.Client, localizationID, 
 			return asc.AppScreenshotUploadResult{}, err
 		}
 	}
+
+	uploadCtx, cancel := contextWithAssetUploadTimeout(ctx)
+	defer cancel()
 
 	if replace {
 		if err := deleteExistingScreenshots(uploadCtx, client, existingScreenshots); err != nil {
