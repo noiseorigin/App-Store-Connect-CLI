@@ -190,6 +190,15 @@ func BuildReadinessReport(ctx context.Context, opts ReadinessOptions) (validatio
 		subscriptions = fetchedSubscriptions
 	}
 
+	hasReviewRelevantSubscriptions := false
+	for _, sub := range subscriptions {
+		state := strings.ToUpper(strings.TrimSpace(sub.State))
+		if state != "" && state != "REMOVED_FROM_SALE" && state != "DEVELOPER_REMOVED_FROM_SALE" {
+			hasReviewRelevantSubscriptions = true
+			break
+		}
+	}
+
 	iaps := make([]validation.IAP, 0)
 	iapFetchSkipReason := ""
 	fetchedIAPs, err := fetchIAPsFn(ctx, client, opts.AppID)
@@ -212,30 +221,31 @@ func BuildReadinessReport(ctx context.Context, opts ReadinessOptions) (validatio
 	}
 
 	report := validation.Validate(validation.Input{
-		AppID:                       opts.AppID,
-		AppInfoID:                   appInfoID,
-		VersionID:                   resolvedVersionID,
-		VersionString:               versionResp.Data.Attributes.VersionString,
-		VersionState:                shared.ResolveAppStoreVersionState(versionResp.Data.Attributes),
-		Platform:                    platform,
-		PrimaryLocale:               appResp.Data.Attributes.PrimaryLocale,
-		VersionLocalizations:        versionLocalizations,
-		AppInfoLocalizations:        appInfoLocalizations,
-		ReviewDetails:               reviewDetails,
-		PrimaryCategoryID:           primaryCategoryID,
-		Build:                       attachedBuild,
-		PriceScheduleID:             priceScheduleID,
-		AvailabilityID:              availabilityID,
-		AvailableTerritories:        availableTerritories,
-		ScreenshotSets:              screenshotSets,
-		Subscriptions:               subscriptions,
-		SubscriptionFetchSkipReason: subscriptionFetchSkipReason,
-		IAPs:                        iaps,
-		IAPFetchSkipReason:          iapFetchSkipReason,
-		AgeRatingDeclaration:        ageRatingDecl,
-		ReleaseType:                 versionResp.Data.Attributes.ReleaseType,
-		EarliestReleaseDate:         versionResp.Data.Attributes.EarliestReleaseDate,
-		Copyright:                   versionResp.Data.Attributes.Copyright,
+		AppID:                          opts.AppID,
+		AppInfoID:                      appInfoID,
+		VersionID:                      resolvedVersionID,
+		VersionString:                  versionResp.Data.Attributes.VersionString,
+		VersionState:                   shared.ResolveAppStoreVersionState(versionResp.Data.Attributes),
+		Platform:                       platform,
+		PrimaryLocale:                  appResp.Data.Attributes.PrimaryLocale,
+		VersionLocalizations:           versionLocalizations,
+		AppInfoLocalizations:           appInfoLocalizations,
+		ReviewDetails:                  reviewDetails,
+		PrimaryCategoryID:              primaryCategoryID,
+		Build:                          attachedBuild,
+		PriceScheduleID:                priceScheduleID,
+		AvailabilityID:                 availabilityID,
+		AvailableTerritories:           availableTerritories,
+		ScreenshotSets:                 screenshotSets,
+		Subscriptions:                  subscriptions,
+		HasReviewRelevantSubscriptions: hasReviewRelevantSubscriptions,
+		SubscriptionFetchSkipReason:    subscriptionFetchSkipReason,
+		IAPs:                           iaps,
+		IAPFetchSkipReason:             iapFetchSkipReason,
+		AgeRatingDeclaration:           ageRatingDecl,
+		ReleaseType:                    versionResp.Data.Attributes.ReleaseType,
+		EarliestReleaseDate:            versionResp.Data.Attributes.EarliestReleaseDate,
+		Copyright:                      versionResp.Data.Attributes.Copyright,
 	}, opts.Strict)
 
 	return report, nil

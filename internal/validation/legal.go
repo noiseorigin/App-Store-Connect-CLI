@@ -2,10 +2,18 @@ package validation
 
 import (
 	"net/url"
+	"regexp"
 	"strings"
 )
 
-func legalChecks(copyright string, hasActiveMonetization bool, versionLocs []VersionLocalization, appInfoLocs []AppInfoLocalization) []CheckResult {
+const AppleStandardEULAURL = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/"
+
+var (
+	descriptionURLPattern = regexp.MustCompile(`https?://[^\s]+`)
+	termsKeywordPattern   = regexp.MustCompile(`(?i)\bterms of use\b|\bterms\b|\beula\b`)
+)
+
+func legalChecks(copyright string, hasActiveMonetization bool, hasReviewRelevantSubscriptions bool, versionLocs []VersionLocalization, appInfoLocs []AppInfoLocalization) []CheckResult {
 	var checks []CheckResult
 
 	// Copyright is required by Apple.
@@ -49,6 +57,19 @@ func legalChecks(copyright string, hasActiveMonetization bool, versionLocs []Ver
 					Remediation:  "Provide a valid https:// URL for marketing",
 				})
 			}
+		}
+
+		if hasReviewRelevantSubscriptions && strings.TrimSpace(loc.Description) != "" && !HasTermsOfUseLink(loc.Description) {
+			checks = append(checks, CheckResult{
+				ID:           "legal.subscription.terms_of_use_link",
+				Severity:     SeverityWarning,
+				Locale:       loc.Locale,
+				Field:        "description",
+				ResourceType: "appStoreVersionLocalization",
+				ResourceID:   loc.ID,
+				Message:      "description is missing a Terms of Use / EULA link for subscription review",
+				Remediation:  `Append a Terms of Use / EULA link to the description, for example: "Terms of Use: https://www.apple.com/legal/internet-services/itunes/dev/stdeula/" or your custom terms URL`,
+			})
 		}
 	}
 
@@ -102,6 +123,46 @@ func legalChecks(copyright string, hasActiveMonetization bool, versionLocs []Ver
 	return checks
 }
 
+// HasTermsOfUseLink reports whether a description includes a functional Terms of Use / EULA link.
+func HasTermsOfUseLink(description string) bool {
+	for _, match := range descriptionURLPattern.FindAllStringIndex(description, -1) {
+		rawURL := description[match[0]:match[1]]
+		normalizedURL := normalizeDescriptionURL(rawURL)
+		if !isValidHTTPURL(normalizedURL) {
+			continue
+		}
+		if isAppleStandardEULAURL(normalizedURL) || urlLooksLikeTermsLink(normalizedURL) {
+			return true
+		}
+
+		contextStart := max(match[0]-80, 0)
+		contextEnd := min(match[1]+80, len(description))
+		if termsKeywordPattern.MatchString(description[contextStart:contextEnd]) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func normalizeDescriptionURL(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	trimmed = strings.TrimLeft(trimmed, `"'([{<`)
+	trimmed = strings.TrimRight(trimmed, `"'.,);:!?]}>`)
+	return trimmed
+}
+
+func isAppleStandardEULAURL(raw string) bool {
+	return strings.EqualFold(strings.TrimSuffix(raw, "/"), strings.TrimSuffix(AppleStandardEULAURL, "/"))
+}
+
+func urlLooksLikeTermsLink(raw string) bool {
+	lower := strings.ToLower(raw)
+	return strings.Contains(lower, "terms") ||
+		strings.Contains(lower, "eula") ||
+		strings.Contains(lower, "tos")
+}
+
 // isValidHTTPURL returns true for absolute HTTP/HTTPS URLs with a hostname and no raw whitespace.
 func isValidHTTPURL(s string) bool {
 	s = strings.TrimSpace(s)
@@ -114,4 +175,18 @@ func isValidHTTPURL(s string) bool {
 		return false
 	}
 	return (u.Scheme == "http" || u.Scheme == "https") && u.Hostname() != ""
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
