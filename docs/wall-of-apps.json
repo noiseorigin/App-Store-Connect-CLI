@@ -563,6 +563,13 @@
     "platform": ["iOS"]
   },
   {
+    "app": "Silk: Relationship Tracker",
+    "link": "https://apps.apple.com/us/app/silk-relationship-tracker/id6748890004?uo=4",
+    "creator": "valzevul",
+    "icon": "https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/f4/31/09/f4310949-7d27-ee90-c6df-c235c860d590/AppIcon-0-0-1x_U007epad-0-1-85-220.png/512x512bb.jpg",
+    "platform": ["iOS"]
+  },
+  {
     "app": "Siraj — Your Ramadan Light",
     "link": "https://apps.apple.com/app/id6759178047",
     "creator": "SwifAI",
