@@ -47,5 +47,3 @@ worktrees/
 # asc screenshots capture output (root-level only; internal/screenshots is code)
 /screenshots/
 
-# Analytics chart images (generated locally, not tracked)
-analytics/*.png
