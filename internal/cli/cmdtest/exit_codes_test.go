@@ -224,6 +224,11 @@ func TestRun_UsageValidationErrorsReturnExitUsage(t *testing.T) {
 			wantErr: "--action-id and --run-id are mutually exclusive",
 		},
 		{
+			name:    "xcode-cloud issues list next with run-id",
+			args:    []string{"xcode-cloud", "issues", "list", "--run-id", "RUN_123", "--next", "https://api.appstoreconnect.apple.com/v1/ciBuildActions/ACT_123/issues?cursor=abc"},
+			wantErr: "--next is not supported with --run-id",
+		},
+		{
 			name:    "publish appstore invalid timeout",
 			args:    []string{"publish", "appstore", "--app", "APP_123", "--ipa", "app.ipa", "--version", "1.0.0", "--timeout", "-1s"},
 			wantErr: "--timeout must be greater than 0",

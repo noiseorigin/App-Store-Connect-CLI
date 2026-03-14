@@ -87,6 +87,7 @@ Examples:
 					}
 					return client.GetCiBuildActionArtifacts(ctx, resolvedActionID, opts...)
 				},
+				aggregateXcodeCloudArtifactsFromRun,
 			)
 		},
 	}
