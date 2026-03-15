@@ -839,7 +839,7 @@ func persistKeychainMetadata(cred Credential) {
 		IssuerID:   strings.TrimSpace(cred.IssuerID),
 		ModifiedAt: metadataModifiedAtString(cred.MetadataModifiedAt),
 	}
-	if metadata.KeyID == "" && metadata.IssuerID == "" || metadata.ModifiedAt == "" {
+	if (metadata.KeyID == "" && metadata.IssuerID == "") || metadata.ModifiedAt == "" {
 		return
 	}
 	updated := false
