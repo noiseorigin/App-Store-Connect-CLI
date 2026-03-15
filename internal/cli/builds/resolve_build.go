@@ -52,12 +52,20 @@ func ResolveBuild(ctx context.Context, client *asc.Client, opts ResolveBuildOpti
 		return nil, shared.UsageError("--build, --latest, or --build-number is required")
 	}
 
+	platform := strings.TrimSpace(opts.Platform)
+	if platform != "" {
+		normalized, err := shared.NormalizeAppStoreVersionPlatform(platform)
+		if err != nil {
+			return nil, shared.UsageError(err.Error())
+		}
+		platform = normalized
+	}
+
 	resolvedAppID, err := shared.ResolveAppIDWithLookup(ctx, client, appID)
 	if err != nil {
 		return nil, err
 	}
 
-	platform := strings.TrimSpace(opts.Platform)
 	version := strings.TrimSpace(opts.Version)
 
 	// Latest mode: find the most recently uploaded build.
