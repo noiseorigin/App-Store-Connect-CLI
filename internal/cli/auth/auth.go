@@ -652,7 +652,7 @@ Examples:
 			}
 
 			credentialLister := listCredentialSummaries
-			if *validate {
+			if *validate || *verbose {
 				credentialLister = listStoredCredentials
 			}
 			credentials, err := credentialLister()
