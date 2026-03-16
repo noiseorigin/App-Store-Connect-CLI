@@ -3,6 +3,7 @@ package reference
 import (
 	_ "embed"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
 )
@@ -113,9 +114,46 @@ func Load() (*Snapshot, error) {
 			err = e
 			return
 		}
+		if e := validateSnapshot(&v); e != nil {
+			err = e
+			return
+		}
 		snap = &v
 	})
 	return snap, err
+}
+
+func validateSnapshot(v *Snapshot) error {
+	if v == nil {
+		return fmt.Errorf("reference snapshot is required")
+	}
+
+	groupByID := make(map[string]struct{}, len(v.Groups))
+	for _, group := range v.Groups {
+		id := strings.TrimSpace(group.ID)
+		if id == "" {
+			return fmt.Errorf("reference snapshot contains a capability group with an empty id")
+		}
+		groupByID[id] = struct{}{}
+	}
+
+	for _, role := range v.Roles {
+		code := strings.TrimSpace(role.Code)
+		if code == "" {
+			return fmt.Errorf("reference snapshot contains a role with an empty code")
+		}
+		for _, rawID := range role.Capabilities {
+			id := strings.TrimSpace(rawID)
+			if id == "" {
+				return fmt.Errorf("reference snapshot role %q contains an empty capability id", code)
+			}
+			if _, ok := groupByID[id]; !ok {
+				return fmt.Errorf("reference snapshot role %q references unknown capability %q", code, id)
+			}
+		}
+	}
+
+	return nil
 }
 
 func Resolve(kind string, codes []string) (*View, error) {
@@ -203,23 +241,6 @@ func Resolve(kind string, codes []string) (*View, error) {
 				RoleLabels: append([]string(nil), groupRoleLabels[group.ID]...),
 			})
 		}
-	}
-
-	for id := range groups {
-		if _, ok := groupByID[id]; ok {
-			continue
-		}
-		group := CapabilityGroup{
-			ID:    id,
-			Label: id,
-		}
-		view.Capabilities = append(view.Capabilities, group)
-		view.DocumentedAccess = append(view.DocumentedAccess, DocumentedAccess{
-			ID:         group.ID,
-			Label:      group.Label,
-			Roles:      append([]string(nil), groupRoles[group.ID]...),
-			RoleLabels: append([]string(nil), groupRoleLabels[group.ID]...),
-		})
 	}
 
 	return view, nil
