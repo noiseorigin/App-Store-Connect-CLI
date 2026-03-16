@@ -157,6 +157,46 @@ func TestClientListTeamKeysParsesRolesAndActors(t *testing.T) {
 	}
 }
 
+func TestClientListTeamKeysDetectsPaginationLoop(t *testing.T) {
+	client := &Client{
+		httpClient: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body: io.NopCloser(strings.NewReader(`{
+					"data":[],
+					"included":[],
+					"links":{
+						"next":"https://appstoreconnect.apple.com/iris/v1/apiKeys?include=createdBy,revokedBy,provider&sort=-isActive,-revokingDate&limit=2000"
+					}
+				}`)),
+			}, nil
+		})},
+	}
+
+	_, err := client.listTeamKeys(context.Background())
+	if err == nil {
+		t.Fatal("expected pagination loop error")
+	}
+	if !strings.Contains(err.Error(), "team keys pagination loop detected") {
+		t.Fatalf("expected loop-detected error, got %v", err)
+	}
+}
+
+func TestNextLookupPagePathRejectsMalformedNextLinkObject(t *testing.T) {
+	_, err := nextLookupPagePath(
+		map[string]any{"next": map[string]any{"unexpected": "value"}},
+		irisV1BaseURL,
+		"team keys",
+	)
+	if err == nil {
+		t.Fatal("expected malformed next-link object error")
+	}
+	if !strings.Contains(err.Error(), "failed to parse team keys pagination links") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestClientLookupAPIKeyRolesReturnsTeamMatch(t *testing.T) {
 	client := &Client{
 		httpClient: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
@@ -518,6 +558,32 @@ func TestClientListActorsParsesIncludedNames(t *testing.T) {
 	}
 	if actors[0].Name != "Mithilesh Chellappan" {
 		t.Fatalf("unexpected actor name: %#v", actors[0])
+	}
+}
+
+func TestClientListActorsDetectsPaginationLoop(t *testing.T) {
+	client := &Client{
+		httpClient: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body: io.NopCloser(strings.NewReader(`{
+					"data":[],
+					"included":[],
+					"links":{
+						"next":"https://appstoreconnect.apple.com/olympus/v1/actors?include=provider,person&limit=2000"
+					}
+				}`)),
+			}, nil
+		})},
+	}
+
+	_, err := client.listActors(context.Background())
+	if err == nil {
+		t.Fatal("expected pagination loop error")
+	}
+	if !strings.Contains(err.Error(), "actors pagination loop detected") {
+		t.Fatalf("expected loop-detected error, got %v", err)
 	}
 }
 
