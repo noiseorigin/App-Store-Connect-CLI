@@ -2,7 +2,9 @@ package xcode
 
 import (
 	"context"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -97,6 +99,15 @@ func TestIsVariableReference(t *testing.T) {
 		if got := isVariableReference(tt.input); got != tt.want {
 			t.Errorf("isVariableReference(%q) = %v, want %v", tt.input, got, tt.want)
 		}
+	}
+}
+
+func TestIsModernAgvtoolOutput(t *testing.T) {
+	if !isModernAgvtoolOutput("App=$(MARKETING_VERSION)\nExtension=$(MARKETING_VERSION)\n") {
+		t.Fatal("expected MARKETING_VERSION references to be detected as modern")
+	}
+	if isModernAgvtoolOutput("App=1.2.3\nExtension=2.0.0\n") {
+		t.Fatal("expected literal target values to be treated as legacy")
 	}
 }
 
@@ -205,6 +216,49 @@ func TestSetVersionRejectsTargetedWrites(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "--target is only supported by xcode version view") {
 		t.Fatalf("expected targeted write rejection, got %v", err)
+	}
+}
+
+func TestSetVersionLegacyMultiTargetUsesProjectWideWrite(t *testing.T) {
+	tempDir := t.TempDir()
+	projectDir := filepath.Join(tempDir, "Project")
+	if err := os.MkdirAll(projectDir, 0o755); err != nil {
+		t.Fatalf("mkdir project dir: %v", err)
+	}
+	logPath := filepath.Join(tempDir, "commands.log")
+
+	restore := overrideTestEnvironment(t)
+	runtimeGOOS = "darwin"
+	lookPathFn = func(file string) (string, error) {
+		return "/usr/bin/" + file, nil
+	}
+	commandContextFn = helperCommandContext(t, logPath)
+	t.Cleanup(restore)
+
+	result, err := SetVersion(context.Background(), SetVersionOptions{
+		ProjectDir: projectDir,
+		Version:    "1.3.0",
+	})
+	if err != nil {
+		t.Fatalf("expected project-wide edit to succeed, got %v", err)
+	}
+	if result.Version != "1.3.0" {
+		t.Fatalf("expected edited version in result, got %#v", result)
+	}
+
+	logData, err := os.ReadFile(logPath)
+	if err != nil {
+		t.Fatalf("read helper log: %v", err)
+	}
+	logText := string(logData)
+	if !strings.Contains(logText, "agvtool|what-marketing-version|-terse1") {
+		t.Fatalf("expected marketing version probe, got %q", logText)
+	}
+	if !strings.Contains(logText, "agvtool|new-marketing-version|1.3.0") {
+		t.Fatalf("expected project-wide marketing version update, got %q", logText)
+	}
+	if strings.Contains(logText, "agvtool|what-version|-terse") {
+		t.Fatalf("expected edit path to avoid ambiguous build-number reads, got %q", logText)
 	}
 }
 

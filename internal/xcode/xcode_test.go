@@ -444,6 +444,19 @@ func TestXcodeHelperProcess(t *testing.T) {
 		os.Exit(0)
 	}
 
+	if len(commandArgs) >= 2 && commandArgs[0] == "agvtool" {
+		switch commandArgs[1] {
+		case "what-marketing-version":
+			fmt.Fprint(os.Stdout, "App=1.2.3\nExtension=2.0.0\n")
+			os.Exit(0)
+		case "what-version":
+			fmt.Fprint(os.Stdout, "App=41\nExtension=7\n")
+			os.Exit(0)
+		case "new-marketing-version", "new-version", "next-version":
+			os.Exit(0)
+		}
+	}
+
 	if len(commandArgs) >= 1 && commandArgs[0] == "xcodebuild" && helperContainsArg(commandArgs[1:], "archive") {
 		archivePath, err := valueAfter(commandArgs[1:], "-archivePath")
 		if err != nil {

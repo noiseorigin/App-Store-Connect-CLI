@@ -144,13 +144,11 @@ func SetVersion(ctx context.Context, opts SetVersionOptions) (*SetVersionResult,
 
 	result := &SetVersionResult{ProjectDir: opts.ProjectDir}
 
-	// Detect modern project by reading current version — reuses GetVersion
-	// instead of a separate agvtool call.
-	current, err := GetVersion(ctx, opts.ProjectDir, "")
+	versionOutput, err := runAgvtool(ctx, opts.ProjectDir, "what-marketing-version", "-terse1")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read marketing version: %w", err)
 	}
-	modern := current.Modern
+	modern := isModernAgvtoolOutput(versionOutput)
 
 	if v := strings.TrimSpace(opts.Version); v != "" {
 		if modern {
@@ -432,6 +430,23 @@ func updatePbxprojSetting(projectDir, setting, newValue string) error {
 // isVariableReference checks if a value is an Xcode variable like $(MARKETING_VERSION).
 func isVariableReference(value string) bool {
 	return strings.Contains(value, "$(")
+}
+
+func isModernAgvtoolOutput(output string) bool {
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		value := line
+		if idx := strings.Index(line, "="); idx >= 0 {
+			value = strings.TrimSpace(line[idx+1:])
+		}
+		if isVariableReference(value) {
+			return true
+		}
+	}
+	return false
 }
 
 // parseAgvtoolVersionOutput extracts the version from agvtool output.
