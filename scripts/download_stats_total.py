@@ -63,7 +63,8 @@ def homebrew_install_on_request() -> dict[str, int]:
 
 
 def _format_badge_total(n: int) -> str:
-    if n >= 1_000_000:
+    # k-suffix rounds e.g. 999_950 → "1000.0k"; use M from ~1M onward.
+    if n >= 999_500:
         s = f"{n / 1e6:.1f}M"
         return s.replace(".0M", "M")
     if n >= 1_000:

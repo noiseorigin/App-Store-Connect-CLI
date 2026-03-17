@@ -41,5 +41,6 @@ jobs:
             echo "Badge JSON unchanged."
           else
             git commit -m "chore: refresh estimated downloads badge"
+            git pull --rebase origin main
             git push origin HEAD:main
           fi
