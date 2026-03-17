@@ -66,9 +66,6 @@ def _format_badge_total(n: int) -> str:
     if n >= 1_000_000:
         s = f"{n / 1e6:.1f}M"
         return s.replace(".0M", "M")
-    if n >= 10_000:
-        s = f"{n / 1000:.1f}k"
-        return s.replace(".0k", "k")
     if n >= 1_000:
         s = f"{n / 1000:.1f}k"
         return s.replace(".0k", "k")
