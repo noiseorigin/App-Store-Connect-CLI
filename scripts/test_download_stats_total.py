@@ -14,6 +14,7 @@ def main() -> int:
     mod = runpy.run_path(str(root / "scripts" / "download_stats_total.py"))
     fmt = mod["_format_badge_total"]
     github_headers = mod["_github_api_headers"]
+    sum_counts = mod["_sum_analytics_counts"]
     cases: list[tuple[int, str]] = [
         (999, "999"),
         (1000, "1k"),
@@ -47,7 +48,19 @@ def main() -> int:
         else:
             os.environ["GITHUB_TOKEN"] = original_token
 
-    print(f"ok {len(cases)} _format_badge_total cases + auth header checks")
+    block_cases: list[tuple[dict[str, object], int]] = [
+        ({"asc": 3, "asc --HEAD": 1}, 4),
+        ({"asc": "3", "asc --HEAD": "1"}, 4),
+        ({"asc": 3.0, "asc --HEAD": "1.0"}, 4),
+        ({"asc": True, "other": None, "bad": "oops", "partial": 2.5}, 0),
+    ]
+    for block, want in block_cases:
+        got = sum_counts(block)
+        if got != want:
+            print(f"FAIL _sum_analytics_counts({block!r}) = {got!r} want {want!r}", file=sys.stderr)
+            return 1
+
+    print(f"ok {len(cases)} _format_badge_total cases + auth/count parsing checks")
     return 0
 
 

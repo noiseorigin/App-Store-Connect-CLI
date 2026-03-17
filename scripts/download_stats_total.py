@@ -38,6 +38,38 @@ def _github_api_headers() -> dict[str, str]:
     return headers
 
 
+def _coerce_count(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value) if value.is_integer() else None
+    if value is None:
+        return None
+
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        return int(text)
+    except ValueError:
+        try:
+            parsed = float(text)
+        except ValueError:
+            return None
+        return int(parsed) if parsed.is_integer() else None
+
+
+def _sum_analytics_counts(block: dict[str, object]) -> int:
+    total = 0
+    for value in block.values():
+        count = _coerce_count(value)
+        if count is not None:
+            total += count
+    return total
+
+
 def github_release_asset_downloads() -> int:
     base = f"https://api.github.com/repos/{REPO}/releases"
     total = 0
@@ -68,8 +100,7 @@ def homebrew_install_on_request() -> dict[str, int]:
     out = {}
     for window in ("30d", "90d", "365d"):
         block = ior.get(window) or {}
-        # keys like "asc", "asc --HEAD"
-        out[window] = sum(int(v) for v in block.values() if isinstance(v, int))
+        out[window] = _sum_analytics_counts(block)
     return out
 
 
