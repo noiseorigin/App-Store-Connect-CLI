@@ -1,0 +1,63 @@
+# Updates docs/badges/installs-total.json for the README Shields endpoint badge.
+name: Refresh installs badge
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-installs-badge
+  cancel-in-progress: true
+
+jobs:
+  update:
+    if: github.repository == 'rudrankriyam/App-Store-Connect-CLI'
+    runs-on: ubuntu-latest
+    steps:
+      # release.* checks out the tag by default; we must commit on main.
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Self-test badge formatter
+        run: python3 scripts/test_download_stats_total.py
+
+      - name: Regenerate badge JSON
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/download_stats_total.py --write-badge docs/badges/installs-total.json
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/badges/installs-total.json
+          if git diff --staged --quiet; then
+            echo "Badge JSON unchanged."
+          else
+            git commit -m "chore: refresh estimated downloads badge"
+            ok=0
+            for attempt in 1 2 3; do
+              if git pull --rebase origin main && git push origin HEAD:main; then
+                ok=1
+                break
+              fi
+              git rebase --abort >/dev/null 2>&1 || true
+              echo "push attempt ${attempt} failed, retrying in 15s..."
+              sleep 15
+            done
+            if [ "$ok" != 1 ]; then
+              echo "::error::could not push badge update to main"
+              exit 1
+            fi
+          fi
