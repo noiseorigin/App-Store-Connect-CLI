@@ -1,6 +1,11 @@
 package localizations
 
-import "testing"
+import (
+	"context"
+	"errors"
+	"flag"
+	"testing"
+)
 
 func TestLocalizationsCommandConstructors(t *testing.T) {
 	top := LocalizationsCommand()
@@ -23,5 +28,31 @@ func TestLocalizationsCommandConstructors(t *testing.T) {
 	}
 	if got := LocalizationsSearchKeywordsCommand(); got == nil {
 		t.Fatal("expected search keywords command")
+	}
+	if got := LocalizationsCreateCommand(); got == nil {
+		t.Fatal("expected create command")
+	}
+}
+
+func TestLocalizationsCreateCommand_MissingFlags(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "missing version", args: []string{"--locale", "ja"}},
+		{name: "missing locale", args: []string{"--version", "VERSION_ID"}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cmd := LocalizationsCreateCommand()
+			if err := cmd.FlagSet.Parse(test.args); err != nil {
+				t.Fatalf("failed to parse flags: %v", err)
+			}
+
+			if err := cmd.Exec(context.Background(), []string{}); !errors.Is(err, flag.ErrHelp) {
+				t.Fatalf("expected flag.ErrHelp, got %v", err)
+			}
+		})
 	}
 }

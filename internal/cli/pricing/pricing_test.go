@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"strings"
 	"testing"
 
 	"github.com/peterbourgon/ff/v3/ffcli"
@@ -243,34 +244,6 @@ func TestPricingAvailabilitySetCommand_MissingFlags(t *testing.T) {
 	}
 }
 
-func TestPricingAvailabilityCreateCommand_MissingFlags(t *testing.T) {
-	t.Setenv("ASC_APP_ID", "")
-
-	tests := []struct {
-		name string
-		args []string
-	}{
-		{name: "missing app", args: []string{"--territory", "USA", "--available", "true", "--available-in-new-territories", "true"}},
-		{name: "missing territory", args: []string{"--app", "APP", "--available", "true", "--available-in-new-territories", "true"}},
-		{name: "missing available", args: []string{"--app", "APP", "--territory", "USA", "--available-in-new-territories", "true"}},
-		{name: "available without territory", args: []string{"--app", "APP", "--available", "true", "--available-in-new-territories", "true"}},
-		{name: "missing available in new territories", args: []string{"--app", "APP", "--territory", "USA", "--available", "true"}},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			cmd := PricingAvailabilityCreateCommand()
-			if err := cmd.FlagSet.Parse(test.args); err != nil {
-				t.Fatalf("failed to parse flags: %v", err)
-			}
-
-			if err := cmd.Exec(context.Background(), []string{}); !errors.Is(err, flag.ErrHelp) {
-				t.Fatalf("expected flag.ErrHelp, got %v", err)
-			}
-		})
-	}
-}
-
 func TestPricingAvailabilitySetCommand_HasAvailableInNewTerritoriesFlag(t *testing.T) {
 	cmd := PricingAvailabilitySetCommand()
 
@@ -279,11 +252,17 @@ func TestPricingAvailabilitySetCommand_HasAvailableInNewTerritoriesFlag(t *testi
 	}
 }
 
-func TestPricingAvailabilityCreateCommand_HasAvailableInNewTerritoriesFlag(t *testing.T) {
-	cmd := PricingAvailabilityCreateCommand()
+func TestPricingAvailabilityCommand_UsesExistingAvailabilitySurface(t *testing.T) {
+	cmd := PricingAvailabilityCommand()
 
-	if f := cmd.FlagSet.Lookup("available-in-new-territories"); f == nil {
-		t.Fatal("expected --available-in-new-territories flag to be defined")
+	for _, subcommand := range cmd.Subcommands {
+		if subcommand.Name == "create" {
+			t.Fatal("did not expect pricing availability create to be registered")
+		}
+	}
+
+	if !strings.Contains(cmd.LongHelp, `"asc web apps availability create"`) {
+		t.Fatalf("expected pricing availability help to point at web bootstrap flow, got %q", cmd.LongHelp)
 	}
 }
 
@@ -302,7 +281,6 @@ func TestPricingCommands_DefaultOutputJSON(t *testing.T) {
 		{"schedule manual-prices", PricingScheduleManualPricesCommand},
 		{"schedule automatic-prices", PricingScheduleAutomaticPricesCommand},
 		{"availability get", PricingAvailabilityGetCommand},
-		{"availability create", PricingAvailabilityCreateCommand},
 		{"availability territory-availabilities", PricingAvailabilityTerritoryAvailabilitiesCommand},
 		{"availability set", PricingAvailabilitySetCommand},
 	}

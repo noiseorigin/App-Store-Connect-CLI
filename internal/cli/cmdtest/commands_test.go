@@ -1397,14 +1397,9 @@ func TestPricingValidationErrors(t *testing.T) {
 			wantErr: "Error: --available-in-new-territories is required",
 		},
 		{
-			name:    "pricing availability create missing territory",
-			args:    []string{"pricing", "availability", "create", "--app", "APP_ID", "--available", "true", "--available-in-new-territories", "true"},
-			wantErr: "Error: --territory is required",
-		},
-		{
-			name:    "pricing availability create missing available",
-			args:    []string{"pricing", "availability", "create", "--app", "APP_ID", "--territory", "USA", "--available-in-new-territories", "true"},
-			wantErr: "Error: --available is required",
+			name:    "pricing availability create removed",
+			args:    []string{"pricing", "availability", "create"},
+			wantErr: "Pricing availability commands operate on existing availability records.",
 		},
 	}
 
@@ -3222,6 +3217,16 @@ func TestLocalizationsValidationErrors(t *testing.T) {
 			name:    "localizations list missing version",
 			args:    []string{"localizations", "list"},
 			wantErr: "--version is required",
+		},
+		{
+			name:    "localizations create missing version",
+			args:    []string{"localizations", "create", "--locale", "ja"},
+			wantErr: "--version is required",
+		},
+		{
+			name:    "localizations create missing locale",
+			args:    []string{"localizations", "create", "--version", "VERSION_ID"},
+			wantErr: "--locale is required",
 		},
 		{
 			name:    "localizations list missing app for app-info",
