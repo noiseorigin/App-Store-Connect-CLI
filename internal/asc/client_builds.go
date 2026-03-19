@@ -3,6 +3,7 @@ package asc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -332,6 +333,9 @@ func (c *Client) UpdateBuild(ctx context.Context, buildID string, attrs BuildUpd
 	path := fmt.Sprintf("/v1/builds/%s", buildID)
 	data, err := c.do(ctx, "PATCH", path, body)
 	if err != nil {
+		if current, ok := c.resolveBuildUpdateNoOp(ctx, buildID, attrs, err); ok {
+			return current, nil
+		}
 		return nil, err
 	}
 
@@ -341,6 +345,58 @@ func (c *Client) UpdateBuild(ctx context.Context, buildID string, attrs BuildUpd
 	}
 
 	return &response, nil
+}
+
+func (c *Client) resolveBuildUpdateNoOp(ctx context.Context, buildID string, attrs BuildUpdateAttributes, updateErr error) (*BuildResponse, bool) {
+	if !isBuildAlreadySetConflict(updateErr) {
+		return nil, false
+	}
+
+	current, err := c.GetBuild(ctx, buildID)
+	if err != nil {
+		return nil, false
+	}
+	if !buildUpdateMatchesCurrent(current, attrs) {
+		return nil, false
+	}
+	return current, true
+}
+
+func isBuildAlreadySetConflict(err error) bool {
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	if !errors.Is(apiErr, ErrConflict) && apiErr.StatusCode != 409 {
+		return false
+	}
+
+	detail := strings.ToLower(strings.TrimSpace(apiErr.Detail))
+	return strings.Contains(detail, "value is already set")
+}
+
+func buildUpdateMatchesCurrent(resp *BuildResponse, attrs BuildUpdateAttributes) bool {
+	if resp == nil {
+		return false
+	}
+
+	matched := false
+	current := resp.Data.Attributes
+
+	if attrs.UsesNonExemptEncryption != nil {
+		matched = true
+		if current.UsesNonExemptEncryption == nil || *current.UsesNonExemptEncryption != *attrs.UsesNonExemptEncryption {
+			return false
+		}
+	}
+	if attrs.Expired != nil {
+		matched = true
+		if current.Expired != *attrs.Expired {
+			return false
+		}
+	}
+
+	return matched
 }
 
 // ExpireBuild expires a build for TestFlight testing.

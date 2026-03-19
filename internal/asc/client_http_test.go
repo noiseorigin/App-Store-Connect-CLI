@@ -45,6 +45,35 @@ func newTestClient(t *testing.T, check func(*http.Request), response *http.Respo
 	}
 }
 
+func newTestClientWithResponses(t *testing.T, check func(*http.Request), responses ...*http.Response) *Client {
+	t.Helper()
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatalf("GenerateKey() error: %v", err)
+	}
+
+	var idx atomic.Int32
+	transport := roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if check != nil {
+			check(req)
+		}
+		i := int(idx.Load())
+		if i >= len(responses) {
+			t.Fatalf("unexpected extra request %d: %s %s", i+1, req.Method, req.URL.Path)
+		}
+		idx.Add(1)
+		return responses[i], nil
+	})
+
+	return &Client{
+		httpClient: &http.Client{Transport: transport},
+		keyID:      "KEY123",
+		issuerID:   "ISS456",
+		privateKey: key,
+	}
+}
+
 func jsonResponse(status int, body string) *http.Response {
 	return &http.Response{
 		Status:     fmt.Sprintf("%d %s", status, http.StatusText(status)),
@@ -1925,6 +1954,51 @@ func TestUpdateBuild_EmptyBuildIDReturnsError(t *testing.T) {
 	_, err := client.UpdateBuild(context.Background(), "", BuildUpdateAttributes{})
 	if err == nil {
 		t.Fatal("expected error for empty buildID")
+	}
+}
+
+func TestUpdateBuild_NoOpConflictReturnsCurrentBuild(t *testing.T) {
+	requestCount := 0
+	client := newTestClientWithResponses(t, func(req *http.Request) {
+		requestCount++
+		switch requestCount {
+		case 1:
+			if req.Method != http.MethodPatch {
+				t.Fatalf("expected PATCH, got %s", req.Method)
+			}
+			if req.URL.Path != "/v1/builds/build-99" {
+				t.Fatalf("expected path /v1/builds/build-99, got %s", req.URL.Path)
+			}
+			assertAuthorized(t, req)
+		case 2:
+			if req.Method != http.MethodGet {
+				t.Fatalf("expected GET, got %s", req.Method)
+			}
+			if req.URL.Path != "/v1/builds/build-99" {
+				t.Fatalf("expected path /v1/builds/build-99, got %s", req.URL.Path)
+			}
+			assertAuthorized(t, req)
+		default:
+			t.Fatalf("unexpected request count %d", requestCount)
+		}
+	},
+		jsonResponse(http.StatusConflict, `{"errors":[{"status":"409","code":"ENTITY_ERROR.ATTRIBUTE.INVALID","title":"The provided entity includes an attribute with an invalid value","detail":"You cannot update when the value is already set."}]}`),
+		jsonResponse(http.StatusOK, `{"data":{"type":"builds","id":"build-99","attributes":{"version":"2.0","uploadedDate":"2026-03-18T00:00:00Z","usesNonExemptEncryption":false}}}`),
+	)
+
+	enc := false
+	resp, err := client.UpdateBuild(context.Background(), "build-99", BuildUpdateAttributes{UsesNonExemptEncryption: &enc})
+	if err != nil {
+		t.Fatalf("UpdateBuild() error: %v", err)
+	}
+	if resp == nil {
+		t.Fatal("expected response")
+	}
+	if resp.Data.Attributes.UsesNonExemptEncryption == nil || *resp.Data.Attributes.UsesNonExemptEncryption != false {
+		t.Fatalf("expected usesNonExemptEncryption=false, got %+v", resp.Data.Attributes.UsesNonExemptEncryption)
+	}
+	if requestCount != 2 {
+		t.Fatalf("expected PATCH then GET, got %d requests", requestCount)
 	}
 }
 
