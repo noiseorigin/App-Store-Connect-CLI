@@ -3,6 +3,7 @@ package asc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -336,18 +337,28 @@ func (c *Client) ExpireBuild(ctx context.Context, buildID string) (*BuildRespons
 
 // AddBetaGroupsToBuild adds beta groups to a build for TestFlight distribution.
 func (c *Client) AddBetaGroupsToBuild(ctx context.Context, buildID string, groupIDs []string) error {
-	return c.AddBetaGroupsToBuildWithNotify(ctx, buildID, groupIDs, false)
+	_, err := c.AddBetaGroupsToBuildWithNotify(ctx, buildID, groupIDs, false)
+	return err
 }
 
+// BuildBetaGroupsNotificationAction describes how notify=true was satisfied.
+type BuildBetaGroupsNotificationAction string
+
+const (
+	BuildBetaGroupsNotificationActionNone              BuildBetaGroupsNotificationAction = ""
+	BuildBetaGroupsNotificationActionManual            BuildBetaGroupsNotificationAction = "manual"
+	BuildBetaGroupsNotificationActionAutoNotifyEnabled BuildBetaGroupsNotificationAction = "auto_notify_enabled"
+)
+
 // AddBetaGroupsToBuildWithNotify adds beta groups to a build with optional notifications.
-func (c *Client) AddBetaGroupsToBuildWithNotify(ctx context.Context, buildID string, groupIDs []string, notify bool) error {
+func (c *Client) AddBetaGroupsToBuildWithNotify(ctx context.Context, buildID string, groupIDs []string, notify bool) (BuildBetaGroupsNotificationAction, error) {
 	buildID = strings.TrimSpace(buildID)
 	groupIDs = normalizeList(groupIDs)
 	if buildID == "" {
-		return fmt.Errorf("buildID is required")
+		return BuildBetaGroupsNotificationActionNone, fmt.Errorf("buildID is required")
 	}
 	if len(groupIDs) == 0 {
-		return fmt.Errorf("groupIDs are required")
+		return BuildBetaGroupsNotificationActionNone, fmt.Errorf("groupIDs are required")
 	}
 
 	payload := RelationshipRequest{
@@ -362,17 +373,47 @@ func (c *Client) AddBetaGroupsToBuildWithNotify(ctx context.Context, buildID str
 
 	body, err := BuildRequestBody(payload)
 	if err != nil {
-		return err
+		return BuildBetaGroupsNotificationActionNone, err
 	}
 
 	path := fmt.Sprintf("/v1/builds/%s/relationships/betaGroups", buildID)
-	if notify {
-		path += "?notify=true"
-	}
 	if _, err := c.do(ctx, "POST", path, body); err != nil {
-		return err
+		return BuildBetaGroupsNotificationActionNone, err
 	}
-	return nil
+	if notify {
+		detail, err := c.GetBuildBuildBetaDetail(ctx, buildID)
+		if err != nil {
+			return BuildBetaGroupsNotificationActionNone, buildBetaGroupsNotifyPartialError(buildID, "checking notification state", err)
+		}
+		if detail.Data.Attributes.AutoNotifyEnabled {
+			return BuildBetaGroupsNotificationActionAutoNotifyEnabled, nil
+		}
+		if _, err := c.CreateBuildBetaNotification(ctx, buildID); err != nil {
+			// Apple can still reject the follow-up create with the same
+			// already-enabled state even after buildBetaDetail says false.
+			if isAutoNotifyAlreadyEnabledNotificationError(err) {
+				return BuildBetaGroupsNotificationActionAutoNotifyEnabled, nil
+			}
+			return BuildBetaGroupsNotificationActionNone, buildBetaGroupsNotifyPartialError(buildID, "notifying testers", err)
+		}
+		return BuildBetaGroupsNotificationActionManual, nil
+	}
+	return BuildBetaGroupsNotificationActionNone, nil
+}
+
+func buildBetaGroupsNotifyPartialError(buildID, step string, err error) error {
+	return fmt.Errorf("beta groups were added to build %q, but %s failed: %w", buildID, step, err)
+}
+
+func isAutoNotifyAlreadyEnabledNotificationError(err error) bool {
+	apiErr, ok := errors.AsType[*APIError](err)
+	if !ok || apiErr == nil {
+		return false
+	}
+	if !strings.EqualFold(strings.TrimSpace(apiErr.Code), "STATE_ERROR.ENTITY_STATE_INVALID") {
+		return false
+	}
+	return strings.Contains(strings.ToLower(strings.TrimSpace(apiErr.Detail)), "auto-notify already enabled")
 }
 
 // RemoveBetaGroupsFromBuild removes beta groups from a build.

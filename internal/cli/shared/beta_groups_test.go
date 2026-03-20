@@ -3,6 +3,8 @@ package shared
 import (
 	"context"
 	"testing"
+
+	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/asc"
 )
 
 type betaGroupsMutationClientStub struct {
@@ -12,12 +14,12 @@ type betaGroupsMutationClientStub struct {
 	calls    int
 }
 
-func (s *betaGroupsMutationClientStub) AddBetaGroupsToBuildWithNotify(_ context.Context, buildID string, groupIDs []string, notify bool) error {
+func (s *betaGroupsMutationClientStub) AddBetaGroupsToBuildWithNotify(_ context.Context, buildID string, groupIDs []string, notify bool) (asc.BuildBetaGroupsNotificationAction, error) {
 	s.calls++
 	s.buildID = buildID
 	s.groupIDs = append([]string(nil), groupIDs...)
 	s.notify = notify
-	return nil
+	return asc.BuildBetaGroupsNotificationActionNone, nil
 }
 
 func TestAddBuildBetaGroupsSkipsInternalGroupsWithAllBuildsWhenRequested(t *testing.T) {
