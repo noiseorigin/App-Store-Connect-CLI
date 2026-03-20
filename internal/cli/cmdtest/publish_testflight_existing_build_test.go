@@ -91,6 +91,12 @@ func TestPublishTestflightExistingBuildIDSkipsUpload(t *testing.T) {
 	if !strings.Contains(stdout, `"uploaded":false`) {
 		t.Fatalf("expected uploaded=false in output, got %q", stdout)
 	}
+	if strings.Contains(stdout, `"notified":`) {
+		t.Fatalf("expected notified to be omitted when --notify is not set, got %q", stdout)
+	}
+	if strings.Contains(stdout, `"notificationAction":`) {
+		t.Fatalf("expected notificationAction to be omitted when --notify is not set, got %q", stdout)
+	}
 }
 
 func TestPublishTestflightExistingBuildIDAllowsInternalGroup(t *testing.T) {
@@ -290,6 +296,9 @@ func TestPublishTestflightExistingBuildIDNotifyUsesBuildBetaNotificationsEndpoin
 	if !strings.Contains(stdout, `"notified":true`) {
 		t.Fatalf("expected notified=true in output, got %q", stdout)
 	}
+	if !strings.Contains(stdout, `"notificationAction":"manual"`) {
+		t.Fatalf("expected notificationAction=manual in output, got %q", stdout)
+	}
 }
 
 func TestPublishTestflightExistingBuildIDNotifySkipsManualNotificationWhenAutoNotifyEnabled(t *testing.T) {
@@ -388,8 +397,11 @@ func TestPublishTestflightExistingBuildIDNotifySkipsManualNotificationWhenAutoNo
 	if !strings.Contains(stdout, `"groupIds":["group-internal"]`) {
 		t.Fatalf("expected internal group in output, got %q", stdout)
 	}
-	if !strings.Contains(stdout, `"notified":true`) {
-		t.Fatalf("expected notified=true in output, got %q", stdout)
+	if !strings.Contains(stdout, `"notified":false`) {
+		t.Fatalf("expected notified=false in output, got %q", stdout)
+	}
+	if !strings.Contains(stdout, `"notificationAction":"auto_notify_enabled"`) {
+		t.Fatalf("expected notificationAction=auto_notify_enabled in output, got %q", stdout)
 	}
 }
 
@@ -739,5 +751,8 @@ func TestPublishTestflightExistingBuildNumberNotifyUsesBuildBetaNotificationsEnd
 	}
 	if !strings.Contains(stdout, `"notified":true`) {
 		t.Fatalf("expected notified=true in output, got %q", stdout)
+	}
+	if !strings.Contains(stdout, `"notificationAction":"manual"`) {
+		t.Fatalf("expected notificationAction=manual in output, got %q", stdout)
 	}
 }

@@ -336,18 +336,28 @@ func (c *Client) ExpireBuild(ctx context.Context, buildID string) (*BuildRespons
 
 // AddBetaGroupsToBuild adds beta groups to a build for TestFlight distribution.
 func (c *Client) AddBetaGroupsToBuild(ctx context.Context, buildID string, groupIDs []string) error {
-	return c.AddBetaGroupsToBuildWithNotify(ctx, buildID, groupIDs, false)
+	_, err := c.AddBetaGroupsToBuildWithNotify(ctx, buildID, groupIDs, false)
+	return err
 }
 
+// BuildBetaGroupsNotificationAction describes how notify=true was satisfied.
+type BuildBetaGroupsNotificationAction string
+
+const (
+	BuildBetaGroupsNotificationActionNone              BuildBetaGroupsNotificationAction = ""
+	BuildBetaGroupsNotificationActionManual            BuildBetaGroupsNotificationAction = "manual"
+	BuildBetaGroupsNotificationActionAutoNotifyEnabled BuildBetaGroupsNotificationAction = "auto_notify_enabled"
+)
+
 // AddBetaGroupsToBuildWithNotify adds beta groups to a build with optional notifications.
-func (c *Client) AddBetaGroupsToBuildWithNotify(ctx context.Context, buildID string, groupIDs []string, notify bool) error {
+func (c *Client) AddBetaGroupsToBuildWithNotify(ctx context.Context, buildID string, groupIDs []string, notify bool) (BuildBetaGroupsNotificationAction, error) {
 	buildID = strings.TrimSpace(buildID)
 	groupIDs = normalizeList(groupIDs)
 	if buildID == "" {
-		return fmt.Errorf("buildID is required")
+		return BuildBetaGroupsNotificationActionNone, fmt.Errorf("buildID is required")
 	}
 	if len(groupIDs) == 0 {
-		return fmt.Errorf("groupIDs are required")
+		return BuildBetaGroupsNotificationActionNone, fmt.Errorf("groupIDs are required")
 	}
 
 	payload := RelationshipRequest{
@@ -362,26 +372,27 @@ func (c *Client) AddBetaGroupsToBuildWithNotify(ctx context.Context, buildID str
 
 	body, err := BuildRequestBody(payload)
 	if err != nil {
-		return err
+		return BuildBetaGroupsNotificationActionNone, err
 	}
 
 	path := fmt.Sprintf("/v1/builds/%s/relationships/betaGroups", buildID)
 	if _, err := c.do(ctx, "POST", path, body); err != nil {
-		return err
+		return BuildBetaGroupsNotificationActionNone, err
 	}
 	if notify {
 		detail, err := c.GetBuildBuildBetaDetail(ctx, buildID)
 		if err != nil {
-			return buildBetaGroupsNotifyPartialError(buildID, "checking notification state", err)
+			return BuildBetaGroupsNotificationActionNone, buildBetaGroupsNotifyPartialError(buildID, "checking notification state", err)
 		}
 		if detail.Data.Attributes.AutoNotifyEnabled {
-			return nil
+			return BuildBetaGroupsNotificationActionAutoNotifyEnabled, nil
 		}
 		if _, err := c.CreateBuildBetaNotification(ctx, buildID); err != nil {
-			return buildBetaGroupsNotifyPartialError(buildID, "notifying testers", err)
+			return BuildBetaGroupsNotificationActionNone, buildBetaGroupsNotifyPartialError(buildID, "notifying testers", err)
 		}
+		return BuildBetaGroupsNotificationActionManual, nil
 	}
-	return nil
+	return BuildBetaGroupsNotificationActionNone, nil
 }
 
 func buildBetaGroupsNotifyPartialError(buildID, step string, err error) error {

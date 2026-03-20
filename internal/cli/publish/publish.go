@@ -237,14 +237,21 @@ Examples:
 				return fmt.Errorf("publish testflight: failed to add groups: %w", err)
 			}
 
+			var notified *bool
+			if *notify {
+				value := addResult.NotificationAction == asc.BuildBetaGroupsNotificationActionManual
+				notified = &value
+			}
+
 			result := &asc.TestFlightPublishResult{
-				BuildID:         buildResp.Data.ID,
-				BuildVersion:    resolvedVersionValue,
-				BuildNumber:     resolvedBuildNumberValue,
-				GroupIDs:        addResult.AddedGroupIDs,
-				Uploaded:        uploaded,
-				ProcessingState: buildResp.Data.Attributes.ProcessingState,
-				Notified:        *notify,
+				BuildID:            buildResp.Data.ID,
+				BuildVersion:       resolvedVersionValue,
+				BuildNumber:        resolvedBuildNumberValue,
+				GroupIDs:           addResult.AddedGroupIDs,
+				Uploaded:           uploaded,
+				ProcessingState:    buildResp.Data.Attributes.ProcessingState,
+				Notified:           notified,
+				NotificationAction: addResult.NotificationAction,
 			}
 
 			return shared.PrintOutput(result, *output.Output, *output.Pretty)

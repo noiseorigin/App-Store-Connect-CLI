@@ -1599,8 +1599,12 @@ func TestAddBetaGroupsToBuildWithNotify_SendsBuildBetaNotificationWhenAutoNotify
 		}
 	}, responses...)
 
-	if err := client.AddBetaGroupsToBuildWithNotify(context.Background(), "build-1", []string{"group-1"}, true); err != nil {
+	action, err := client.AddBetaGroupsToBuildWithNotify(context.Background(), "build-1", []string{"group-1"}, true)
+	if err != nil {
 		t.Fatalf("AddBetaGroupsToBuildWithNotify() error: %v", err)
+	}
+	if action != BuildBetaGroupsNotificationActionManual {
+		t.Fatalf("expected manual notification action, got %q", action)
 	}
 	if requestCount != 3 {
 		t.Fatalf("expected 3 requests, got %d", requestCount)
@@ -1650,8 +1654,12 @@ func TestAddBetaGroupsToBuildWithNotify_SkipsBuildBetaNotificationWhenAutoNotify
 		}
 	}, responses...)
 
-	if err := client.AddBetaGroupsToBuildWithNotify(context.Background(), "build-1", []string{"group-1"}, true); err != nil {
+	action, err := client.AddBetaGroupsToBuildWithNotify(context.Background(), "build-1", []string{"group-1"}, true)
+	if err != nil {
 		t.Fatalf("AddBetaGroupsToBuildWithNotify() error: %v", err)
+	}
+	if action != BuildBetaGroupsNotificationActionAutoNotifyEnabled {
+		t.Fatalf("expected auto-notify-enabled action, got %q", action)
 	}
 	if requestCount != 2 {
 		t.Fatalf("expected 2 requests, got %d", requestCount)
@@ -1680,7 +1688,7 @@ func TestAddBetaGroupsToBuildWithNotify_BuildBetaDetailFailureExplainsGroupsAlre
 		}
 	}, responses...)
 
-	err := client.AddBetaGroupsToBuildWithNotify(context.Background(), "build-1", []string{"group-1"}, true)
+	_, err := client.AddBetaGroupsToBuildWithNotify(context.Background(), "build-1", []string{"group-1"}, true)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -1722,7 +1730,7 @@ func TestAddBetaGroupsToBuildWithNotify_NotificationFailureExplainsGroupsAlready
 		}
 	}, responses...)
 
-	err := client.AddBetaGroupsToBuildWithNotify(context.Background(), "build-1", []string{"group-1"}, true)
+	_, err := client.AddBetaGroupsToBuildWithNotify(context.Background(), "build-1", []string{"group-1"}, true)
 	if err == nil {
 		t.Fatal("expected error")
 	}

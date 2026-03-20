@@ -14,7 +14,7 @@ type betaGroupsClient interface {
 }
 
 type buildBetaGroupsMutationClient interface {
-	AddBetaGroupsToBuildWithNotify(ctx context.Context, buildID string, groupIDs []string, notify bool) error
+	AddBetaGroupsToBuildWithNotify(ctx context.Context, buildID string, groupIDs []string, notify bool) (asc.BuildBetaGroupsNotificationAction, error)
 }
 
 // ResolvedBetaGroup captures the canonical ID and metadata for a beta group.
@@ -48,6 +48,7 @@ type AddBuildBetaGroupsOptions struct {
 type AddBuildBetaGroupsResult struct {
 	AddedGroupIDs         []string
 	SkippedInternalGroups []ResolvedBetaGroup
+	NotificationAction    asc.BuildBetaGroupsNotificationAction
 }
 
 // ResolveBetaGroups lists an app's beta groups and resolves the provided IDs or names.
@@ -164,16 +165,19 @@ func AddBuildBetaGroups(ctx context.Context, client buildBetaGroupsMutationClien
 		return &AddBuildBetaGroupsResult{
 			AddedGroupIDs:         []string{},
 			SkippedInternalGroups: skippedInternalGroups,
+			NotificationAction:    asc.BuildBetaGroupsNotificationActionNone,
 		}, nil
 	}
 
-	if err := client.AddBetaGroupsToBuildWithNotify(ctx, buildID, groupIDsToAdd, opts.Notify); err != nil {
+	notificationAction, err := client.AddBetaGroupsToBuildWithNotify(ctx, buildID, groupIDsToAdd, opts.Notify)
+	if err != nil {
 		return nil, err
 	}
 
 	return &AddBuildBetaGroupsResult{
 		AddedGroupIDs:         groupIDsToAdd,
 		SkippedInternalGroups: skippedInternalGroups,
+		NotificationAction:    notificationAction,
 	}, nil
 }
 
