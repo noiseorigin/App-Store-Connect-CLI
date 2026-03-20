@@ -257,6 +257,12 @@ func resolveBuildStatusBundleID(ctx context.Context, client *asc.Client, appID s
 
 func buildStatusPrivateKeyPath(creds ResolvedAuthCredentials) (string, error) {
 	if pem := strings.TrimSpace(creds.KeyPEM); pem != "" {
+		if decoded, cacheKey, ok := decodeBuildStatusPrivateKeyPEMBase64(pem); ok {
+			if path := cachedTempPrivateKeyPath(cacheKey); path != "" {
+				return path, nil
+			}
+			return writeTempPrivateKey(decoded, cacheKey)
+		}
 		normalized := normalizePrivateKeyValue(pem)
 		cacheKey := tempPrivateKeyCacheKey("raw", normalized)
 		if path := cachedTempPrivateKeyPath(cacheKey); path != "" {
@@ -270,6 +276,27 @@ func buildStatusPrivateKeyPath(creds ResolvedAuthCredentials) (string, error) {
 		}
 	}
 	return "", nil
+}
+
+func decodeBuildStatusPrivateKeyPEMBase64(value string) ([]byte, string, bool) {
+	compact := strings.Join(strings.Fields(value), "")
+	if compact == "" {
+		return nil, "", false
+	}
+	decoded, err := decodeBase64Secret(value)
+	if err != nil {
+		return nil, "", false
+	}
+	normalized := normalizePrivateKeyValue(string(decoded))
+	if !looksLikePrivateKeyPEM(normalized) {
+		return nil, "", false
+	}
+	return []byte(normalized), tempPrivateKeyCacheKey("b64", compact), true
+}
+
+func looksLikePrivateKeyPEM(value string) bool {
+	normalized := normalizePrivateKeyValue(value)
+	return strings.Contains(normalized, "BEGIN ") && strings.Contains(normalized, "PRIVATE KEY")
 }
 
 func joinDiagnosticDetails(values []string) string {
