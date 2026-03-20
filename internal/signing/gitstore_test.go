@@ -12,8 +12,8 @@ func TestEnsureInsideDir(t *testing.T) {
 	baseDir := t.TempDir()
 
 	tests := []struct {
-		name   string
-		target string
+		name    string
+		target  string
 		wantErr bool
 	}{
 		{
@@ -87,6 +87,31 @@ func TestGitStoreWriteEncryptedFileRejectsPathEscape(t *testing.T) {
 	}
 }
 
+func TestGitStoreWriteEncryptedFileRejectsSymlinkedParentDirectory(t *testing.T) {
+	store := &GitStore{LocalDir: t.TempDir()}
+	outsideDir := t.TempDir()
+
+	if err := os.Symlink(outsideDir, filepath.Join(store.LocalDir, "linked")); err != nil {
+		t.Fatalf("create parent symlink: %v", err)
+	}
+
+	err := store.WriteEncryptedFile(filepath.Join("linked", "secret"), []byte("secret"), "test-password")
+	if err == nil {
+		t.Fatal("expected symlink rejection error, got nil")
+	}
+	if !strings.Contains(err.Error(), "symlink") {
+		t.Fatalf("expected symlink rejection error, got %v", err)
+	}
+
+	_, statErr := os.Stat(filepath.Join(outsideDir, "secret.enc"))
+	if statErr == nil {
+		t.Fatal("did not expect write through symlinked parent directory")
+	}
+	if !os.IsNotExist(statErr) {
+		t.Fatalf("stat outside write target: %v", statErr)
+	}
+}
+
 func TestGitStoreReadEncryptedFileRejectsSymlink(t *testing.T) {
 	store := &GitStore{LocalDir: t.TempDir()}
 	targetDir := t.TempDir()
@@ -112,6 +137,34 @@ func TestGitStoreReadEncryptedFileRejectsSymlink(t *testing.T) {
 		t.Fatal("expected symlink rejection error, got nil")
 	}
 	if !strings.Contains(err.Error(), "refusing to read symlink") {
+		t.Fatalf("expected symlink rejection error, got %v", err)
+	}
+}
+
+func TestGitStoreReadEncryptedFileRejectsSymlinkedParentDirectory(t *testing.T) {
+	store := &GitStore{LocalDir: t.TempDir()}
+	targetDir := t.TempDir()
+	password := "test-password"
+
+	encrypted, err := Encrypt([]byte("secret"), password)
+	if err != nil {
+		t.Fatalf("Encrypt: %v", err)
+	}
+
+	targetPath := filepath.Join(targetDir, "secret.enc")
+	if err := os.WriteFile(targetPath, encrypted, 0o600); err != nil {
+		t.Fatalf("write target encrypted file: %v", err)
+	}
+
+	if err := os.Symlink(targetDir, filepath.Join(store.LocalDir, "linked")); err != nil {
+		t.Fatalf("create parent symlink: %v", err)
+	}
+
+	_, err = store.ReadEncryptedFile(filepath.Join("linked", "secret"), password)
+	if err == nil {
+		t.Fatal("expected symlink rejection error, got nil")
+	}
+	if !strings.Contains(err.Error(), "symlink") {
 		t.Fatalf("expected symlink rejection error, got %v", err)
 	}
 }
