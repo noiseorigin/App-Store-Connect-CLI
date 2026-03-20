@@ -508,6 +508,29 @@ func TestParseBuildStatusOutputCollectsProcessingErrors(t *testing.T) {
 	}
 }
 
+func TestParseBuildStatusOutputHandlesLongProcessingErrorLines(t *testing.T) {
+	longDetail := strings.Repeat("x", 70*1024)
+	result := parseBuildStatusOutput(
+		"BUILD-STATUS: FAILED\n" +
+			"PROCESSING-ERRORS:\n" +
+			"description : " + longDetail + "\n" +
+			"IMPORT-STATUS: COMPLETE\n",
+	)
+
+	if result.BuildStatus != "FAILED" {
+		t.Fatalf("expected build status FAILED, got %q", result.BuildStatus)
+	}
+	if result.ImportStatus != "COMPLETE" {
+		t.Fatalf("expected import status COMPLETE, got %q", result.ImportStatus)
+	}
+	if len(result.ProcessingErrors) != 1 {
+		t.Fatalf("expected 1 processing error, got %+v", result.ProcessingErrors)
+	}
+	if result.ProcessingErrors[0] != longDetail {
+		t.Fatalf("expected long processing detail to survive parsing, got %d bytes", len(result.ProcessingErrors[0]))
+	}
+}
+
 func TestExportWritesIPAAtExactPathAndReturnsMetadata(t *testing.T) {
 	tempDir := t.TempDir()
 	archivePath := filepath.Join(tempDir, "Demo.xcarchive")

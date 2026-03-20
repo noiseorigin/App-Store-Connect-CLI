@@ -705,6 +705,7 @@ func mergeCapturedCommandOutput(stdout, stderr string) string {
 func parseBuildStatusOutput(output string) *BuildStatusResult {
 	result := &BuildStatusResult{}
 	scanner := bufio.NewScanner(strings.NewReader(output))
+	scanner.Buffer(make([]byte, 0, bufio.MaxScanTokenSize), max(bufio.MaxScanTokenSize, len(output)+1))
 	inProcessingErrors := false
 
 	for scanner.Scan() {
@@ -733,6 +734,13 @@ func parseBuildStatusOutput(output string) *BuildStatusResult {
 	}
 
 	return result
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func normalizeBuildStatusLine(raw string) string {
