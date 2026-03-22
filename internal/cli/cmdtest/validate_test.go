@@ -397,6 +397,25 @@ func TestValidateOutputsJSONAndTable(t *testing.T) {
 	if report.Summary.Errors != 0 || report.Summary.Warnings != 0 {
 		t.Fatalf("expected no issues, got %+v", report.Summary)
 	}
+	if report.Summary.Infos == 0 {
+		t.Fatalf("expected informational advisories, got %+v", report.Summary)
+	}
+	foundPrivacyAdvisory := false
+	for _, check := range report.Checks {
+		if check.ID != "privacy.publish_state.unverified" {
+			continue
+		}
+		foundPrivacyAdvisory = true
+		if check.Severity != validation.SeverityInfo {
+			t.Fatalf("expected info severity for privacy advisory, got %+v", check)
+		}
+		if strings.Contains(strings.ToLower(check.Remediation), "asc web") {
+			t.Fatalf("did not expect private/web guidance in remediation, got %q", check.Remediation)
+		}
+	}
+	if !foundPrivacyAdvisory {
+		t.Fatalf("expected privacy advisory in validate report, got %+v", report.Checks)
+	}
 
 	root = RootCommand("1.2.3")
 	stdout, _ = captureOutput(t, func() {

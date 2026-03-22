@@ -12,14 +12,16 @@ import (
 
 	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/asc"
 	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/shared"
+	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/validation"
 )
 
 // checkResult represents the outcome of a single preflight check.
 type checkResult struct {
-	Name    string `json:"name"`
-	Passed  bool   `json:"passed"`
-	Message string `json:"message,omitempty"`
-	Hint    string `json:"hint,omitempty"`
+	Name     string `json:"name"`
+	Passed   bool   `json:"passed"`
+	Advisory bool   `json:"advisory,omitempty"`
+	Message  string `json:"message,omitempty"`
+	Hint     string `json:"hint,omitempty"`
 }
 
 // preflightResult aggregates all preflight check outcomes.
@@ -154,6 +156,7 @@ func runPreflight(ctx context.Context, client *asc.Client, appID, version, platf
 		locChecks := checkLocalizations(ctx, client, versionID, appID, version, platform)
 		result.Checks = append(result.Checks, locChecks...)
 	}
+	result.Checks = append(result.Checks, privacyPublishStateAdvisoryCheck(appID))
 
 	tallyCounts(result)
 	return result
@@ -163,11 +166,24 @@ func tallyCounts(result *preflightResult) {
 	result.PassCount = 0
 	result.FailCount = 0
 	for _, c := range result.Checks {
+		if c.Advisory {
+			continue
+		}
 		if c.Passed {
 			result.PassCount++
 		} else {
 			result.FailCount++
 		}
+	}
+}
+
+func privacyPublishStateAdvisoryCheck(appID string) checkResult {
+	advisory := validation.PrivacyPublishStateAdvisory(appID)
+	return checkResult{
+		Name:     "App Privacy",
+		Advisory: advisory.ID != "",
+		Message:  advisory.Message,
+		Hint:     advisory.Remediation,
 	}
 }
 
@@ -705,7 +721,12 @@ func printPreflightText(w io.Writer, result *preflightResult) {
 	fmt.Fprintln(w, strings.Repeat("\u2500", len(header)))
 
 	for _, c := range result.Checks {
-		if c.Passed {
+		if c.Advisory {
+			fmt.Fprintf(w, "! %s\n", c.Message)
+			if c.Hint != "" {
+				fmt.Fprintf(w, "  Hint: %s\n", c.Hint)
+			}
+		} else if c.Passed {
 			fmt.Fprintf(w, "\u2713 %s\n", c.Message)
 		} else {
 			fmt.Fprintf(w, "\u2717 %s\n", c.Message)
