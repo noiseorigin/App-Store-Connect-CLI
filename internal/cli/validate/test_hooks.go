@@ -53,20 +53,16 @@ func SetFetchIAPsFunc(fn func(context.Context, *asc.Client, string) ([]validatio
 // SetFetchAvailableTerritoriesFunc replaces the availability fetcher for tests.
 // It returns a restore function to reset the previous handler.
 func SetFetchAvailableTerritoriesFunc(fn func(context.Context, *asc.Client, string) (string, int, error)) func() {
-	previous := fetchAvailableTerritoriesFn
 	previousDetails := fetchAvailableTerritoryDetailsFn
 	if fn == nil {
-		fetchAvailableTerritoriesFn = fetchAvailableTerritories
 		fetchAvailableTerritoryDetailsFn = fetchAvailableTerritoryDetails
 	} else {
-		fetchAvailableTerritoriesFn = fn
 		fetchAvailableTerritoryDetailsFn = func(ctx context.Context, client *asc.Client, appID string) (string, []string, int, error) {
 			availabilityID, availableTerritories, err := fn(ctx, client, appID)
 			return availabilityID, nil, availableTerritories, err
 		}
 	}
 	return func() {
-		fetchAvailableTerritoriesFn = previous
 		fetchAvailableTerritoryDetailsFn = previousDetails
 	}
 }

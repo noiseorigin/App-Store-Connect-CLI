@@ -383,8 +383,29 @@ func buildAppAvailabilityCoverageDiagnosticRow(sub Subscription, appTerritories 
 		return row
 	}
 
-	priced := sortedUniqueNonEmpty(sub.PriceTerritories)
+	if sub.AvailabilityCheckSkipped {
+		row.Status = DiagnosticStatusUnverified
+		row.Blocking = false
+		row.Remediation = fallbackString(sub.AvailabilityCheckSkipReason, "Validation could not compare price coverage against app availability until subscription availability verification succeeds")
+		return row
+	}
+
+	if strings.TrimSpace(sub.AvailabilityID) == "" {
+		row.Blocking = false
+		row.Evidence = "subscription availability missing"
+		row.Remediation = "Configure subscription availability before comparing price coverage against app availability."
+		return row
+	}
+
 	subscriptionTerritories := sortedUniqueNonEmpty(sub.AvailabilityTerritories)
+	if len(subscriptionTerritories) == 0 {
+		row.Blocking = false
+		row.Evidence = "subscription availability has no territories"
+		row.Remediation = "Add subscription availability territories before comparing price coverage against app availability."
+		return row
+	}
+
+	priced := sortedUniqueNonEmpty(sub.PriceTerritories)
 	if len(subscriptionTerritories) > 0 {
 		if len(appTerritories) > 0 {
 			appOnly := missingValues(appTerritories, subscriptionTerritories)

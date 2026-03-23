@@ -309,6 +309,13 @@ func subscriptionPricingCoverageChecks(subs []Subscription, availableTerritories
 		label := formatSubscriptionLabel(sub)
 		priceTerritories := sortedUniqueNonEmpty(sub.PriceTerritories)
 		subscriptionAvailabilityTerritories := sortedUniqueNonEmpty(sub.AvailabilityTerritories)
+		if state == "MISSING_METADATA" {
+			availabilityUnknown := sub.AvailabilityCheckSkipped || strings.TrimSpace(sub.AvailabilityID) == ""
+			availabilityEmpty := strings.TrimSpace(sub.AvailabilityID) != "" && len(subscriptionAvailabilityTerritories) == 0
+			if availabilityUnknown || availabilityEmpty {
+				continue
+			}
+		}
 		if len(subscriptionAvailabilityTerritories) > 0 {
 			if len(priceTerritories) > 0 {
 				missing := missingValues(subscriptionAvailabilityTerritories, priceTerritories)

@@ -13,15 +13,7 @@ import (
 	"github.com/rudrankriyam/App-Store-Connect-CLI/internal/cli/shared"
 )
 
-var (
-	fetchAvailableTerritoriesFn      = fetchAvailableTerritories
-	fetchAvailableTerritoryDetailsFn = fetchAvailableTerritoryDetails
-)
-
-func fetchAvailableTerritories(ctx context.Context, client *asc.Client, appID string) (string, int, error) {
-	availabilityID, _, availableTerritories, err := fetchAvailableTerritoryDetailsFn(ctx, client, appID)
-	return availabilityID, availableTerritories, err
-}
+var fetchAvailableTerritoryDetailsFn = fetchAvailableTerritoryDetails
 
 func fetchAvailableTerritoryDetails(ctx context.Context, client *asc.Client, appID string) (string, []string, int, error) {
 	availabilityID := ""

@@ -698,6 +698,53 @@ func TestValidateSubscriptionsDoesNotBlockDiagnosticsWhenAppAvailabilityIsMissin
 	}
 }
 
+func TestValidateSubscriptionsSkipsAppCoverageUntilSubscriptionAvailabilityExists(t *testing.T) {
+	report := ValidateSubscriptions(SubscriptionsInput{
+		AppID:                   "app-1",
+		AppBuildCount:           1,
+		AppAvailableTerritories: []string{"USA", "CAN"},
+		Subscriptions: []Subscription{
+			{
+				ID:                 "sub-1",
+				Name:               "Monthly",
+				ProductID:          "com.example.monthly",
+				State:              "MISSING_METADATA",
+				GroupID:            "group-1",
+				GroupName:          "Premium",
+				GroupLocalizations: []SubscriptionGroupLocalizationInfo{{Locale: "en-US", Name: "Premium"}},
+				Localizations:      []SubscriptionLocalizationInfo{{Locale: "en-US", Name: "Monthly", Description: "Unlimited access"}},
+				ReviewScreenshotID: "shot-1",
+				HasImage:           true,
+				PriceCount:         1,
+				PriceTerritories:   []string{"USA"},
+			},
+		},
+	}, false)
+
+	if hasCheckID(report.Checks, "subscriptions.pricing.partial_territory_coverage") {
+		t.Fatalf("did not expect app-territory pricing warning before subscription availability exists, got %+v", report.Checks)
+	}
+	if len(report.Diagnostics) != 1 {
+		t.Fatalf("expected one subscription diagnostics entry, got %+v", report.Diagnostics)
+	}
+
+	diag := report.Diagnostics[0]
+	if diag.Conclusion != "known_blocker" {
+		t.Fatalf("expected missing subscription availability to remain the blocker, got %+v", diag)
+	}
+
+	appCoverageRow, ok := findSubscriptionDiagnosticRow(diag.Rows, "price_coverage_app_availability")
+	if !ok {
+		t.Fatalf("expected app coverage diagnostic row, got %+v", diag.Rows)
+	}
+	if appCoverageRow.Status != DiagnosticStatusUnknown || appCoverageRow.Blocking {
+		t.Fatalf("expected app coverage row to stay non-blocking until subscription availability exists, got %+v", appCoverageRow)
+	}
+	if !strings.Contains(appCoverageRow.Evidence, "subscription availability missing") {
+		t.Fatalf("expected app coverage evidence to explain the missing prerequisite, got %+v", appCoverageRow)
+	}
+}
+
 func findSubscriptionDiagnosticRow(rows []SubscriptionDiagnosticRow, key string) (SubscriptionDiagnosticRow, bool) {
 	for _, row := range rows {
 		if row.Key == key {
