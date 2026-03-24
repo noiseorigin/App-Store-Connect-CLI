@@ -252,55 +252,69 @@ func fetchAnalyticsReportInstances(ctx context.Context, client *asc.Client, repo
 	return all, nil
 }
 
-func normalizeCompareDateRange(from, fromEnd string, freq asc.SalesReportFrequency) (string, string, error) {
+func normalizeCompareDateRange(from, fromEnd string, freq asc.SalesReportFrequency, fromFlag, fromEndFlag string) (string, string, error) {
 	from = strings.TrimSpace(from)
 	fromEnd = strings.TrimSpace(fromEnd)
 	if fromEnd == "" {
 		fromEnd = from
 	}
 
+	start, startTime, err := normalizeCompareRangeBoundary(from, freq, fromFlag)
+	if err != nil {
+		return "", "", err
+	}
+	end, endTime, err := normalizeCompareRangeBoundary(fromEnd, freq, fromEndFlag)
+	if err != nil {
+		return "", "", err
+	}
+	if endTime.Before(startTime) {
+		return "", "", fmt.Errorf("%s must not be before %s", fromEndFlag, fromFlag)
+	}
+	return start, end, nil
+}
+
+func normalizeCompareRangeBoundary(value string, freq asc.SalesReportFrequency, flagName string) (string, time.Time, error) {
+	trimmed := strings.TrimSpace(value)
 	switch freq {
 	case asc.SalesReportFrequencyYearly:
-		start, err := time.Parse("2006", from)
+		parsed, err := time.Parse("2006", trimmed)
 		if err != nil {
-			return "", "", fmt.Errorf("--from must be in YYYY format for yearly frequency")
+			return "", time.Time{}, fmt.Errorf("%s must be in YYYY format for yearly frequency", flagName)
 		}
-		end, err := time.Parse("2006", fromEnd)
-		if err != nil {
-			return "", "", fmt.Errorf("--from-end must be in YYYY format for yearly frequency")
-		}
-		if end.Before(start) {
-			return "", "", fmt.Errorf("--from-end must not be before --from")
-		}
-		return start.Format("2006"), end.Format("2006"), nil
+		return parsed.Format("2006"), parsed, nil
 
 	case asc.SalesReportFrequencyMonthly:
-		start, err := time.Parse("2006-01", from)
+		parsed, err := time.Parse("2006-01", trimmed)
 		if err != nil {
-			return "", "", fmt.Errorf("--from must be in YYYY-MM format for monthly frequency")
+			return "", time.Time{}, fmt.Errorf("%s must be in YYYY-MM format for monthly frequency", flagName)
 		}
-		end, err := time.Parse("2006-01", fromEnd)
-		if err != nil {
-			return "", "", fmt.Errorf("--from-end must be in YYYY-MM format for monthly frequency")
-		}
-		if end.Before(start) {
-			return "", "", fmt.Errorf("--from-end must not be before --from")
-		}
-		return start.Format("2006-01"), end.Format("2006-01"), nil
+		return parsed.Format("2006-01"), parsed, nil
+
+	case asc.SalesReportFrequencyWeekly:
+		return normalizeWeeklyCompareBoundary(trimmed, flagName)
 
 	default:
-		start, err := time.Parse("2006-01-02", from)
+		parsed, err := time.Parse("2006-01-02", trimmed)
 		if err != nil {
-			return "", "", fmt.Errorf("--from must be in YYYY-MM-DD format")
+			return "", time.Time{}, fmt.Errorf("%s must be in YYYY-MM-DD format", flagName)
 		}
-		end, err := time.Parse("2006-01-02", fromEnd)
-		if err != nil {
-			return "", "", fmt.Errorf("--from-end must be in YYYY-MM-DD format")
-		}
-		if end.Before(start) {
-			return "", "", fmt.Errorf("--from-end must not be before --from")
-		}
-		return start.Format("2006-01-02"), end.Format("2006-01-02"), nil
+		return parsed.Format("2006-01-02"), parsed, nil
+	}
+}
+
+func normalizeWeeklyCompareBoundary(value, flagName string) (string, time.Time, error) {
+	parsed, err := time.Parse("2006-01-02", strings.TrimSpace(value))
+	if err != nil {
+		return "", time.Time{}, fmt.Errorf("%s must be in YYYY-MM-DD format for weekly reports", flagName)
+	}
+	switch parsed.Weekday() {
+	case time.Monday:
+		weekEnd := parsed.AddDate(0, 0, 6)
+		return weekEnd.Format("2006-01-02"), weekEnd, nil
+	case time.Sunday:
+		return parsed.Format("2006-01-02"), parsed, nil
+	default:
+		return "", time.Time{}, fmt.Errorf("%s for weekly reports must be a Monday (week start) or Sunday (week end)", flagName)
 	}
 }
 
